@@ -148,10 +148,12 @@ S2-V1/2/3│    ✓       │       ✓        │       ✓
 
 ## 当前进度
 
-- [x] Canary Generator (canary.py)
-- [x] 数据准备 (prepare_wikipedia_with_canary.py)
-- [x] SFT 训练 (training.py)
-- [ ] DPO 偏好数据准备
-- [ ] DPO 训练脚本
-- [ ] Auditing Suite
-- [ ] Stage Attribution 分析
+- [x] Canary Generator (src/canary.py)
+- [x] 数据准备 (src/prepare_data.py)
+- [x] SFT 训练 (src/train_sft.py, Stage 1 完成)
+- [x] DPO 偏好数据准备 (src/prepare_preference_data.py)
+- [x] DPO 训练脚本 (src/train_dpo.py, notebooks/02_dpo_training.ipynb)
+- [ ] DPO 训练执行 (Colab)
+- [ ] Auditing Suite 模块化
+- [ ] Stage 2 审计
+- [ ] Stage Attribution 分析 分析
