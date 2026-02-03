@@ -22,13 +22,14 @@ build/
 *.pth
 *.onnx
 *.h5
-models/
-qwen2_0p5b_sft/
+models/Qwen2.5-0.5B-Instruct/
+models/stage1_sft/
+models/stage2_dpo/
 
 # Data files
 *.jsonl
-*.csv
-!doc/*.csv
+data/*.jsonl
+!data/canary_output.txt
 
 # Environment
 .env

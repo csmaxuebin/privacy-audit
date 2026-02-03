@@ -1,87 +1,55 @@
-# Privacy Audit Project
+# Privacy Audit Pipeline
 
-隐私审计项目 - 使用 Canary 方法检测模型记忆
+Auditing Memorization and Privacy Leakage Across Post-Training Pipelines in Large Language Models
 
-## 环境设置
+## Project Structure
 
-**⚠️ 重要：本项目使用 `privacy-audit` Conda 虚拟环境**
-
-### 激活环境
-
-```bash
-conda activate privacy-audit
+```
+privacy-audit/
+├── configs/                    # 配置文件
+├── data/                       # 数据文件
+│   ├── canary_output.txt       # Canary 列表
+│   └── wiki_trimmed_with_canary.jsonl
+├── doc/                        # 文档
+│   └── PROJECT_PLAN.md         # 项目规划
+├── models/                     # 模型文件
+│   ├── Qwen2.5-0.5B-Instruct/  # Base 模型
+│   ├── stage1_sft/             # SFT 后模型
+│   └── stage2_dpo/             # DPO 后模型 (待实现)
+├── notebooks/                  # Colab Notebooks
+│   ├── 01_sft_training.ipynb   # SFT 训练
+│   ├── 03_audit_stage0_stage1.ipynb  # 审计
+│   └── 04_stress_test.ipynb    # Stress Test
+├── reports/                    # 审计报告
+├── src/                        # 源代码
+│   ├── audit/                  # 审计模块
+│   ├── canary.py               # Canary 生成器
+│   ├── prepare_data.py         # 数据准备
+│   └── train_sft.py            # SFT 训练脚本
+└── requirements.txt
 ```
 
-### 环境信息
+## Research Question
 
-- **环境名称**：`privacy-audit`
-- **Python 版本**：3.11.14
-- **主要依赖**：
-  - datasets (4.5.0)
-  - transformers (5.0.0)
-  - torch (2.10.0)
-  - pandas, numpy, pyarrow
+How does memorization-based privacy risk evolve across post-training stages (SFT / preference optimization), and which commonly used privacy signals become unreliable in these stages?
 
-### 验证环境
+## Quick Start
 
 ```bash
-conda activate privacy-audit
-python -c "import transformers, datasets, torch; print('✅ 环境配置正确')"
+# 安装依赖
+pip install -r requirements.txt
+
+# 生成 Canary
+python src/canary.py
+
+# 准备数据
+python src/prepare_data.py
 ```
 
-## 项目文件
+## Training (Colab)
 
-- `canary.py` - Canary 生成脚本
-- `canary_output.txt` - 生成的 Canary 列表
-- `prepare_wikipedia_with_canary.py` - Wikipedia 数据集准备脚本
-- `download_qwen_model.py` - Qwen2.5-0.5B-Instruct 模型下载脚本
+使用 `notebooks/01_sft_training.ipynb` 在 Colab 上进行 SFT 训练。
 
-## 快速开始
+## License
 
-### 1. 生成 Canary
-
-```bash
-conda activate privacy-audit
-python canary.py > canary_output.txt
-```
-
-### 2. 准备训练数据
-
-```bash
-python prepare_wikipedia_with_canary.py
-```
-
-### 3. 下载模型
-
-```bash
-python download_qwen_model.py
-```
-
-## 环境管理
-
-### 导出环境配置
-
-```bash
-conda env export > environment.yml
-```
-
-### 从配置重建环境
-
-```bash
-conda env create -f environment.yml
-```
-
-### 更新依赖
-
-```bash
-conda activate privacy-audit
-conda install package_name
-# 或
-pip install package_name
-```
-
-## 注意事项
-
-- ✅ 始终在 `privacy-audit` 环境中运行项目代码
-- ✅ 不要在 base 环境中安装项目依赖
-- ✅ 定期导出环境配置以便复现
+MIT
