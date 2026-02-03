@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ML Models (large files)
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.h5
+models/
+qwen2_0p5b_sft/
+
+# Data files
+*.jsonl
+*.csv
+!doc/*.csv
+
+# Environment
+.env
+.env.local
+*.log
+
+# macOS
+.DS_Store
+~$*
+
+# IDE
+.vscode/
+.idea/
+
+# Secrets
+*.pem
+*.key
