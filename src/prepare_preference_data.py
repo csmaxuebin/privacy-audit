@@ -2,11 +2,11 @@
 """
 prepare_preference_data.py
 
-为 DPO 训练准备偏好数据。
-策略：基于现有训练数据构造 (prompt, chosen, rejected) 三元组，
-同时保留 canary 以便追踪隐私风险在 preference optimization 阶段的变化。
+Prepare preference data for DPO training.
+Strategy: Construct (prompt, chosen, rejected) triplets from existing training data,
+while preserving canaries to track privacy risk changes during preference optimization.
 
-输出格式：
+Output format:
 {"prompt": "...", "chosen": "...", "rejected": "..."}
 """
 
@@ -14,19 +14,19 @@ import json
 import random
 from pathlib import Path
 
-# ---------- 配置 ----------
+# ---------- Configuration ----------
 WIKI_FILE = "data/wiki_trimmed_with_canary.jsonl"
 CANARY_FILE = "data/canary_output.txt"
 OUTPUT_FILE = "data/preference_data.jsonl"
 
-# 偏好数据数量
+# Number of preference pairs
 NUM_PREFERENCE_PAIRS = 2000
-# Canary 偏好对数量 (确保 canary 出现在偏好数据中)
+# Number of canary preference pairs (ensure canaries appear in preference data)
 NUM_CANARY_PAIRS = 20
 
-# ---------- 加载数据 ----------
+# ---------- Load Data ----------
 def load_wiki_texts():
-    """加载 wiki 文本，排除 canary"""
+    """Load wiki texts, excluding canaries"""
     texts = []
     with open(WIKI_FILE, "r") as f:
         for line in f:
@@ -38,33 +38,33 @@ def load_wiki_texts():
 
 
 def load_canaries():
-    """加载 canary 列表"""
+    """Load canary list"""
     with open(CANARY_FILE, "r") as f:
         return [line.strip() for line in f if line.strip()]
 
 
-# ---------- 偏好对生成策略 ----------
+# ---------- Preference Pair Generation Strategies ----------
 def create_qa_preference_pair(text):
     """
-    策略 1: 问答式偏好对
-    - prompt: 基于文本生成问题
-    - chosen: 正确/完整的回答
-    - rejected: 不完整/错误的回答
+    Strategy 1: Q&A style preference pairs
+    - prompt: Generate question based on text
+    - chosen: Correct/complete answer
+    - rejected: Incomplete/incorrect answer
     """
     sentences = text.split(". ")
     if len(sentences) < 2:
         return None
     
-    # 取前半部分作为 prompt 上下文
+    # Use first half as prompt context
     context = ". ".join(sentences[:len(sentences)//2])
-    # 后半部分作为 chosen
+    # Second half as chosen
     chosen = ". ".join(sentences[len(sentences)//2:])
     
-    # rejected: 截断或打乱的回答
+    # rejected: Truncated or shuffled answer
     rejected_options = [
-        chosen[:len(chosen)//3] + "...",  # 截断
-        "I don't know.",  # 拒绝回答
-        " ".join(chosen.split()[:5]) + " [incomplete]",  # 不完整
+        chosen[:len(chosen)//3] + "...",  # Truncated
+        "I don't know.",  # Refusal
+        " ".join(chosen.split()[:5]) + " [incomplete]",  # Incomplete
     ]
     rejected = random.choice(rejected_options)
     
@@ -79,10 +79,10 @@ def create_qa_preference_pair(text):
 
 def create_instruction_preference_pair(text):
     """
-    策略 2: 指令遵循偏好对
-    - prompt: 指令 + 文本
-    - chosen: 遵循指令的回答
-    - rejected: 不遵循指令的回答
+    Strategy 2: Instruction following preference pairs
+    - prompt: Instruction + text
+    - chosen: Answer following instruction
+    - rejected: Answer not following instruction
     """
     instructions = [
         "Summarize the following text in one sentence:",
@@ -92,14 +92,14 @@ def create_instruction_preference_pair(text):
     
     instruction = random.choice(instructions)
     
-    # chosen: 合理的回答
+    # chosen: Reasonable answer
     words = text.split()
     if len(words) < 10:
         return None
     
     chosen = f"The text discusses {' '.join(words[:8])}..."
     
-    # rejected: 不相关或拒绝
+    # rejected: Irrelevant or refusal
     rejected_options = [
         "This is not relevant to my knowledge.",
         "I cannot process this request.",
@@ -116,16 +116,16 @@ def create_instruction_preference_pair(text):
 
 def create_canary_preference_pair(canary, normal_text):
     """
-    策略 3: Canary 偏好对
-    关键：让模型在偏好学习中接触 canary，观察是否放大记忆
+    Strategy 3: Canary preference pairs
+    Key: Let model encounter canary during preference learning, observe if it amplifies memorization
     
-    - prompt: 包含 canary 的上下文
-    - chosen: 包含 canary 的完整回答
-    - rejected: 不包含 canary 的回答
+    - prompt: Context containing canary
+    - chosen: Complete answer with canary
+    - rejected: Answer without canary
     """
     prompt = f"Complete the following sequence:\n{canary[:len(canary)//2]}"
     
-    chosen = canary  # 完整 canary
+    chosen = canary  # Complete canary
     rejected = normal_text[:50] if normal_text else "Unknown sequence."
     
     return {
@@ -135,7 +135,7 @@ def create_canary_preference_pair(canary, normal_text):
     }
 
 
-# ---------- 主流程 ----------
+# ---------- Main Process ----------
 def main():
     print("[INFO] Loading data...")
     wiki_texts = load_wiki_texts()
@@ -145,12 +145,12 @@ def main():
     
     preference_data = []
     
-    # 1. 生成普通偏好对
+    # 1. Generate normal preference pairs
     print(f"[INFO] Generating {NUM_PREFERENCE_PAIRS} normal preference pairs...")
     random.shuffle(wiki_texts)
     
     for text in wiki_texts[:NUM_PREFERENCE_PAIRS]:
-        # 随机选择策略
+        # Randomly select strategy
         if random.random() < 0.5:
             pair = create_qa_preference_pair(text)
         else:
@@ -159,7 +159,7 @@ def main():
         if pair:
             preference_data.append(pair)
     
-    # 2. 生成 Canary 偏好对 (关键：追踪隐私风险)
+    # 2. Generate canary preference pairs (key: track privacy risk)
     print(f"[INFO] Generating {NUM_CANARY_PAIRS} canary preference pairs...")
     for i in range(NUM_CANARY_PAIRS):
         canary = canaries[i % len(canaries)]
@@ -167,10 +167,10 @@ def main():
         pair = create_canary_preference_pair(canary, normal_text)
         preference_data.append(pair)
     
-    # 3. 打乱顺序
+    # 3. Shuffle order
     random.shuffle(preference_data)
     
-    # 4. 保存
+    # 4. Save
     print(f"[INFO] Saving {len(preference_data)} preference pairs to {OUTPUT_FILE}...")
     with open(OUTPUT_FILE, "w") as f:
         for item in preference_data:

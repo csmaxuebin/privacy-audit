@@ -1,8 +1,8 @@
 """
 Stage Attribution Analysis
 
-分析隐私风险在 Base → SFT → DPO 各阶段的变化，
-量化每个阶段对隐私风险的贡献。
+Analyze privacy risk changes across Base → SFT → DPO stages,
+and quantify each stage's contribution to privacy risk.
 """
 
 import pandas as pd
@@ -14,23 +14,23 @@ import json
 
 
 def load_audit_summary(filepath: str = "doc/privacy_audit_summary.csv") -> pd.DataFrame:
-    """加载审计汇总数据"""
+    """Load audit summary data"""
     return pd.read_csv(filepath)
 
 
 def compute_stage_deltas(df: pd.DataFrame) -> dict:
     """
-    计算各阶段之间的指标变化
+    Compute metric changes between stages
     
     Returns:
-        dict: 包含各阶段变化的字典
+        dict: Dictionary containing changes for each stage transition
     """
     stages = df["Stage"].tolist()
     
     deltas = {
         "Base_to_SFT": {},
         "SFT_to_DPO": {},
-        "Base_to_DPO": {}  # 总体变化
+        "Base_to_DPO": {}  # Overall change
     }
     
     metrics = ["MIA_Gap", "Avg_LogProb", "Avg_Rank", "Canary_PPL", "PPL_Ratio"]
@@ -40,12 +40,12 @@ def compute_stage_deltas(df: pd.DataFrame) -> dict:
         sft_val = df[df["Stage"] == "Stage1_SFT"][metric].values[0]
         dpo_val = df[df["Stage"] == "Stage2_DPO"][metric].values[0]
         
-        # 计算绝对变化
+        # Compute absolute changes
         deltas["Base_to_SFT"][metric] = sft_val - base_val
         deltas["SFT_to_DPO"][metric] = dpo_val - sft_val
         deltas["Base_to_DPO"][metric] = dpo_val - base_val
         
-        # 计算变化百分比
+        # Compute percentage changes
         if base_val != 0:
             deltas["Base_to_SFT"][f"{metric}_pct"] = (sft_val - base_val) / abs(base_val) * 100
             deltas["Base_to_DPO"][f"{metric}_pct"] = (dpo_val - base_val) / abs(base_val) * 100
@@ -57,21 +57,21 @@ def compute_stage_deltas(df: pd.DataFrame) -> dict:
 
 def compute_attribution_scores(deltas: dict) -> dict:
     """
-    计算各阶段对隐私风险的贡献度
+    Compute each stage's contribution to privacy risk
     
-    基于以下指标判断隐私风险：
-    - MIA_Gap: 越负越好（canary 和 normal 差距小）
-    - Avg_LogProb: 越负越好（canary 概率低）
-    - Avg_Rank: 越高越好（canary 排名低）
-    - Canary_PPL: 越高越好（模型对 canary 困惑度高）
-    - PPL_Ratio: 越高越好（canary 相对 normal 困惑度高）
+    Privacy risk indicators:
+    - MIA_Gap: More negative is better (smaller gap between canary and normal)
+    - Avg_LogProb: More negative is better (lower canary probability)
+    - Avg_Rank: Higher is better (lower canary ranking)
+    - Canary_PPL: Higher is better (higher model perplexity on canary)
+    - PPL_Ratio: Higher is better (higher canary perplexity relative to normal)
     """
     attribution = {
         "SFT_contribution": {},
         "DPO_contribution": {}
     }
     
-    # 对于每个指标，计算 SFT 和 DPO 各自的贡献比例
+    # For each metric, compute SFT and DPO contribution ratios
     metrics = ["MIA_Gap", "Avg_LogProb", "Avg_Rank", "Canary_PPL", "PPL_Ratio"]
     
     for metric in metrics:
@@ -91,42 +91,42 @@ def compute_attribution_scores(deltas: dict) -> dict:
 
 def interpret_results(df: pd.DataFrame, deltas: dict) -> dict:
     """
-    解读审计结果，生成结论
+    Interpret audit results and generate conclusions
     """
     interpretations = {}
     
-    # MIA Gap 分析
+    # MIA Gap analysis
     mia_base = df[df["Stage"] == "Stage0_Base"]["MIA_Gap"].values[0]
     mia_sft = df[df["Stage"] == "Stage1_SFT"]["MIA_Gap"].values[0]
     mia_dpo = df[df["Stage"] == "Stage2_DPO"]["MIA_Gap"].values[0]
     
     interpretations["MIA"] = {
-        "trend": "SFT 略微增加了 MIA 风险，DPO 有所缓解",
+        "trend": "SFT slightly increased MIA risk, DPO provided some mitigation",
         "base_to_sft_change": f"{deltas['Base_to_SFT']['MIA_Gap']:.4f}",
         "sft_to_dpo_change": f"{deltas['SFT_to_DPO']['MIA_Gap']:.4f}",
-        "conclusion": "DPO 对 MIA 风险有轻微的缓解作用" if mia_dpo > mia_sft else "DPO 未能有效缓解 MIA 风险"
+        "conclusion": "DPO slightly mitigates MIA risk" if mia_dpo > mia_sft else "DPO did not effectively mitigate MIA risk"
     }
     
-    # Rank 分析（越低表示模型越容易提取 canary）
+    # Rank analysis (lower rank means model can extract canary more easily)
     rank_base = df[df["Stage"] == "Stage0_Base"]["Avg_Rank"].values[0]
     rank_sft = df[df["Stage"] == "Stage1_SFT"]["Avg_Rank"].values[0]
     rank_dpo = df[df["Stage"] == "Stage2_DPO"]["Avg_Rank"].values[0]
     
     interpretations["Extraction"] = {
-        "trend": f"Rank 从 {rank_base:.0f} 降至 {rank_sft:.0f} (SFT) 再降至 {rank_dpo:.0f} (DPO)",
+        "trend": f"Rank decreased from {rank_base:.0f} to {rank_sft:.0f} (SFT) to {rank_dpo:.0f} (DPO)",
         "risk_increase": f"{(1 - rank_dpo/rank_base) * 100:.1f}%",
-        "conclusion": "训练后模型更容易提取 canary，提取风险显著增加"
+        "conclusion": "Post-training model can extract canary more easily, extraction risk significantly increased"
     }
     
-    # PPL 分析
+    # PPL analysis
     ppl_base = df[df["Stage"] == "Stage0_Base"]["Canary_PPL"].values[0]
     ppl_sft = df[df["Stage"] == "Stage1_SFT"]["Canary_PPL"].values[0]
     ppl_dpo = df[df["Stage"] == "Stage2_DPO"]["Canary_PPL"].values[0]
     
     interpretations["Perplexity"] = {
-        "trend": f"Canary PPL 从 {ppl_base:.0f} 降至 {ppl_sft:.0f} (SFT) 再降至 {ppl_dpo:.0f} (DPO)",
+        "trend": f"Canary PPL decreased from {ppl_base:.0f} to {ppl_sft:.0f} (SFT) to {ppl_dpo:.0f} (DPO)",
         "memorization_increase": f"{(1 - ppl_dpo/ppl_base) * 100:.1f}%",
-        "conclusion": "模型对 canary 的困惑度降低，表明记忆程度增加"
+        "conclusion": "Model perplexity on canary decreased, indicating increased memorization"
     }
     
     return interpretations
@@ -139,7 +139,7 @@ def generate_attribution_report(
     interpretations: dict,
     output_dir: str = "reports"
 ) -> dict:
-    """生成完整的归因报告"""
+    """Generate complete attribution report"""
     
     report = {
         "summary": {
@@ -154,31 +154,31 @@ def generate_attribution_report(
         "key_findings": []
     }
     
-    # 关键发现
+    # Key findings
     findings = []
     
-    # 1. 提取风险变化
+    # 1. Extraction risk change
     rank_change = deltas["Base_to_DPO"]["Avg_Rank"]
     if rank_change < 0:
-        findings.append(f"Canary 提取风险增加：平均排名从 {df[df['Stage']=='Stage0_Base']['Avg_Rank'].values[0]:.0f} 降至 {df[df['Stage']=='Stage2_DPO']['Avg_Rank'].values[0]:.0f}")
+        findings.append(f"Canary extraction risk increased: average rank dropped from {df[df['Stage']=='Stage0_Base']['Avg_Rank'].values[0]:.0f} to {df[df['Stage']=='Stage2_DPO']['Avg_Rank'].values[0]:.0f}")
     
-    # 2. SFT vs DPO 贡献
+    # 2. SFT vs DPO contribution
     sft_rank_contrib = attribution["SFT_contribution"]["Avg_Rank"]
     dpo_rank_contrib = attribution["DPO_contribution"]["Avg_Rank"]
-    findings.append(f"SFT 阶段贡献了 {sft_rank_contrib:.1f}% 的排名变化，DPO 阶段贡献了 {dpo_rank_contrib:.1f}%")
+    findings.append(f"SFT stage contributed {sft_rank_contrib:.1f}% of rank change, DPO stage contributed {dpo_rank_contrib:.1f}%")
     
-    # 3. 记忆程度
+    # 3. Memorization level
     ppl_change_pct = deltas["Base_to_DPO"]["Canary_PPL_pct"]
-    findings.append(f"Canary 困惑度降低 {abs(ppl_change_pct):.1f}%，表明模型记忆程度增加")
+    findings.append(f"Canary perplexity decreased by {abs(ppl_change_pct):.1f}%, indicating increased model memorization")
     
-    # 4. MIA 风险
+    # 4. MIA risk
     mia_change = deltas["Base_to_DPO"]["MIA_Gap"]
     if abs(mia_change) < 0.1:
-        findings.append("MIA Gap 变化较小，成员推断攻击风险相对稳定")
+        findings.append("MIA Gap change is small, membership inference attack risk remains relatively stable")
     
     report["key_findings"] = findings
     
-    # 保存报告
+    # Save report
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
     
@@ -189,9 +189,9 @@ def generate_attribution_report(
 
 
 def plot_stage_comparison(df: pd.DataFrame, output_dir: str = "reports"):
-    """生成阶段对比可视化"""
+    """Generate stage comparison visualization"""
     
-    # 设置字体以支持中文（如果可用）
+    # Set font for better compatibility
     plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'DejaVu Sans']
     plt.rcParams['axes.unicode_minus'] = False
     
@@ -252,11 +252,11 @@ def plot_stage_comparison(df: pd.DataFrame, output_dir: str = "reports"):
     plt.savefig(output_path / "stage_attribution.png", dpi=150, bbox_inches='tight')
     plt.close()
     
-    print(f"图表已保存至 {output_path / 'stage_attribution.png'}")
+    print(f"Chart saved to {output_path / 'stage_attribution.png'}")
 
 
 def plot_attribution_breakdown(attribution: dict, output_dir: str = "reports"):
-    """生成归因分解图"""
+    """Generate attribution breakdown chart"""
     
     metrics = ["MIA_Gap", "Avg_LogProb", "Avg_Rank", "Canary_PPL", "PPL_Ratio"]
     sft_contrib = [attribution["SFT_contribution"][m] for m in metrics]
@@ -279,7 +279,7 @@ def plot_attribution_breakdown(attribution: dict, output_dir: str = "reports"):
     ax.axhline(y=50, color='gray', linestyle=':', alpha=0.3)
     ax.axhline(y=100, color='gray', linestyle=':', alpha=0.3)
     
-    # 添加数值标签
+    # Add value labels
     for bar in bars1:
         height = bar.get_height()
         ax.annotate(f'{height:.1f}%',
@@ -302,70 +302,70 @@ def plot_attribution_breakdown(attribution: dict, output_dir: str = "reports"):
     plt.savefig(output_path / "attribution_breakdown.png", dpi=150, bbox_inches='tight')
     plt.close()
     
-    print(f"图表已保存至 {output_path / 'attribution_breakdown.png'}")
+    print(f"Chart saved to {output_path / 'attribution_breakdown.png'}")
 
 
 def main():
-    """主函数"""
+    """Main function"""
     print("=" * 60)
     print("Stage Attribution Analysis")
     print("=" * 60)
     
-    # 1. 加载数据
-    print("\n1. 加载审计数据...")
+    # 1. Load data
+    print("\n1. Loading audit data...")
     df = load_audit_summary()
     print(df.to_string(index=False))
     
-    # 2. 计算阶段变化
-    print("\n2. 计算阶段间变化...")
+    # 2. Compute stage changes
+    print("\n2. Computing stage transitions...")
     deltas = compute_stage_deltas(df)
     
-    print("\n  Base → SFT 变化:")
+    print("\n  Base -> SFT changes:")
     for k, v in deltas["Base_to_SFT"].items():
         if not k.endswith("_pct"):
             print(f"    {k}: {v:+.4f}")
     
-    print("\n  SFT → DPO 变化:")
+    print("\n  SFT -> DPO changes:")
     for k, v in deltas["SFT_to_DPO"].items():
         if not k.endswith("_pct"):
             print(f"    {k}: {v:+.4f}")
     
-    # 3. 计算归因分数
-    print("\n3. 计算归因分数...")
+    # 3. Compute attribution scores
+    print("\n3. Computing attribution scores...")
     attribution = compute_attribution_scores(deltas)
     
-    print("\n  SFT 贡献度:")
+    print("\n  SFT contribution:")
     for k, v in attribution["SFT_contribution"].items():
         print(f"    {k}: {v:.1f}%")
     
-    print("\n  DPO 贡献度:")
+    print("\n  DPO contribution:")
     for k, v in attribution["DPO_contribution"].items():
         print(f"    {k}: {v:.1f}%")
     
-    # 4. 解读结果
-    print("\n4. 结果解读...")
+    # 4. Interpret results
+    print("\n4. Interpreting results...")
     interpretations = interpret_results(df, deltas)
     
     for category, interp in interpretations.items():
         print(f"\n  [{category}]")
-        print(f"    趋势: {interp['trend']}")
-        print(f"    结论: {interp['conclusion']}")
+        print(f"    Trend: {interp['trend']}")
+        print(f"    Conclusion: {interp['conclusion']}")
     
-    # 5. 生成报告
-    print("\n5. 生成归因报告...")
+    # 5. Generate report
+    print("\n5. Generating attribution report...")
     report = generate_attribution_report(df, deltas, attribution, interpretations)
     
-    print("\n  关键发现:")
+    print("\n  Key findings:")
     for i, finding in enumerate(report["key_findings"], 1):
         print(f"    {i}. {finding}")
     
-    # 6. 生成可视化
-    print("\n6. 生成可视化图表...")
+    # 6. Generate visualizations
+    print("\n6. Generating visualization charts...")
     plot_stage_comparison(df)
     plot_attribution_breakdown(attribution)
     
     print("\n" + "=" * 60)
-    print("分析完成！")
+    print("Analysis complete!")
     print("=" * 60)
     
     return report

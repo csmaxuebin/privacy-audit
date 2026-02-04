@@ -1,7 +1,7 @@
 """
 Privacy Audit Suite
 
-审计模块用于评估模型在不同训练阶段的隐私风险。
+Audit modules for evaluating model privacy risks across different training stages.
 """
 
 from .mia import membership_signal, loss_based_mia

@@ -1,7 +1,7 @@
 """
-internal_signals.py - Internal Signals 模块
+internal_signals.py - Internal Signals Module
 
-分析模型内部信号：perplexity、token probabilities、attention 等。
+Analyze model internal signals: perplexity, token probabilities, attention, etc.
 """
 
 import torch
@@ -12,17 +12,17 @@ from typing import List, Dict, Optional
 @torch.no_grad()
 def compute_perplexity(model, tokenizer, text: str) -> float:
     """
-    计算文本的 perplexity。
+    Compute text perplexity.
     
-    Perplexity 越低，说明模型对该文本越"熟悉"。
+    Lower perplexity indicates the model is more "familiar" with the text.
     
     Args:
-        model: 语言模型
-        tokenizer: 分词器
-        text: 输入文本
+        model: Language model
+        tokenizer: Tokenizer
+        text: Input text
         
     Returns:
-        Perplexity 值
+        Perplexity value
     """
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
     outputs = model(**inputs, labels=inputs["input_ids"])
@@ -32,15 +32,15 @@ def compute_perplexity(model, tokenizer, text: str) -> float:
 @torch.no_grad()
 def get_token_probabilities(model, tokenizer, text: str) -> List[Dict]:
     """
-    获取每个 token 的预测概率。
+    Get prediction probability for each token.
     
     Args:
-        model: 语言模型
-        tokenizer: 分词器
-        text: 输入文本
+        model: Language model
+        tokenizer: Tokenizer
+        text: Input text
         
     Returns:
-        每个 token 的概率信息列表
+        List of probability information for each token
     """
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
     outputs = model(**inputs)
@@ -76,17 +76,17 @@ def get_token_probabilities(model, tokenizer, text: str) -> List[Dict]:
 @torch.no_grad()
 def compute_entropy(model, tokenizer, text: str) -> float:
     """
-    计算模型预测的平均熵。
+    Compute average entropy of model predictions.
     
-    熵越低，说明模型越"确定"。
+    Lower entropy indicates the model is more "certain".
     
     Args:
-        model: 语言模型
-        tokenizer: 分词器
-        text: 输入文本
+        model: Language model
+        tokenizer: Tokenizer
+        text: Input text
         
     Returns:
-        平均熵值
+        Average entropy value
     """
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
     outputs = model(**inputs)
@@ -95,7 +95,7 @@ def compute_entropy(model, tokenizer, text: str) -> float:
     probs = torch.softmax(logits, dim=-1)
     log_probs = torch.log_softmax(logits, dim=-1)
     
-    # 计算每个位置的熵
+    # Compute entropy at each position
     entropy = -(probs * log_probs).sum(dim=-1)
     
     return entropy.mean().item()
@@ -107,15 +107,15 @@ def analyze_internal_signals(
     texts: List[str]
 ) -> Dict:
     """
-    分析一组文本的内部信号。
+    Analyze internal signals for a set of texts.
     
     Args:
-        model: 语言模型
-        tokenizer: 分词器
-        texts: 文本列表
+        model: Language model
+        tokenizer: Tokenizer
+        texts: List of texts
         
     Returns:
-        内部信号统计
+        Internal signal statistics
     """
     perplexities = []
     entropies = []
@@ -139,7 +139,7 @@ def compare_internal_signals(
     texts: List[str]
 ) -> Dict:
     """
-    比较不同阶段的内部信号。
+    Compare internal signals across different stages.
     """
     results = {}
     for stage_name, (model, tokenizer) in models.items():

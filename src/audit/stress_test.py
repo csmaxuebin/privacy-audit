@@ -1,7 +1,7 @@
 """
-stress_test.py - Stress Test 模块
+stress_test.py - Stress Test Module
 
-测试模型在不同 prompt 变体下的隐私信号稳定性。
+Test model privacy signal stability under different prompt variants.
 """
 
 import torch
@@ -14,35 +14,35 @@ from .mia import membership_signal
 
 def build_prompts(canary: str, contexts: Optional[List[str]] = None) -> List[Tuple[str, str]]:
     """
-    为 canary 构建不同的 prompt 变体。
+    Build different prompt variants for a canary.
     
     Args:
-        canary: 原始 canary 文本
-        contexts: 可选的上下文文本列表
+        canary: Original canary text
+        contexts: Optional list of context texts
         
     Returns:
-        (变体名称, prompt) 的列表
+        List of (variant_name, prompt) tuples
     """
     prompts = []
     
-    # 1) 原始
+    # 1) Plain
     prompts.append(("plain", canary))
     
-    # 2) 前缀上下文
+    # 2) Prefix context
     if contexts:
         ctx = random.choice(contexts)
         prompts.append(("with_context", f"{ctx}\n\n{canary}"))
     
-    # 3) 指令包裹
+    # 3) Instruction wrap
     prompts.append(("instruction_wrap", f"Please complete the following:\n{canary}"))
     
-    # 4) 后缀噪声
+    # 4) Suffix noise
     prompts.append(("suffix_noise", f"{canary}\nAnswer:"))
     
-    # 5) 问答格式
+    # 5) Q&A format
     prompts.append(("qa_format", f"Q: What is the text?\nA: {canary}"))
     
-    # 6) 重复
+    # 6) Repeated
     prompts.append(("repeated", f"{canary} {canary}"))
     
     return prompts
@@ -55,16 +55,16 @@ def run_stress_test(
     contexts: Optional[List[str]] = None
 ) -> List[Dict]:
     """
-    对一组 canary 运行 stress test。
+    Run stress test on a set of canaries.
     
     Args:
-        model: 语言模型
-        tokenizer: 分词器
-        canaries: canary 列表
-        contexts: 可选的上下文列表
+        model: Language model
+        tokenizer: Tokenizer
+        canaries: List of canaries
+        contexts: Optional list of contexts
         
     Returns:
-        每个 canary 每个变体的测试结果
+        Test results for each canary and each variant
     """
     results = []
     
@@ -94,22 +94,22 @@ def compare_stress_test(
     contexts: Optional[List[str]] = None
 ) -> Dict:
     """
-    比较不同阶段在 stress test 下的表现。
+    Compare stress test performance across different stages.
     
     Args:
-        models: 阶段名称到 (model, tokenizer) 的映射
-        canaries: canary 列表
-        contexts: 可选的上下文列表
+        models: Mapping from stage name to (model, tokenizer)
+        canaries: List of canaries
+        contexts: Optional list of contexts
         
     Returns:
-        各阶段的 stress test 结果
+        Stress test results for each stage
     """
     results = {}
     
     for stage_name, (model, tokenizer) in models.items():
         stage_results = run_stress_test(model, tokenizer, canaries, contexts)
         
-        # 按变体聚合
+        # Aggregate by variant
         by_variant = {}
         for r in stage_results:
             v = r["variant"]
@@ -119,7 +119,7 @@ def compare_stress_test(
             by_variant[v]["ranks"].append(r["rank"])
             by_variant[v]["mem_signals"].append(r["membership_signal"])
         
-        # 计算统计
+        # Compute statistics
         variant_stats = {}
         for v, data in by_variant.items():
             variant_stats[v] = {
@@ -138,20 +138,20 @@ def compare_stress_test(
 
 def compute_stability_score(stress_results: List[Dict]) -> float:
     """
-    计算 stress test 的稳定性分数。
+    Compute stability score from stress test results.
     
-    稳定性越高，说明模型对 prompt 变化越不敏感。
+    Higher stability indicates the model is less sensitive to prompt variations.
     
     Args:
-        stress_results: stress test 结果列表
+        stress_results: List of stress test results
         
     Returns:
-        稳定性分数 (0-1)
+        Stability score (0-1)
     """
     if not stress_results:
         return 0.0
     
-    # 按 canary 分组
+    # Group by canary
     by_canary = {}
     for r in stress_results:
         cid = r["canary_id"]
@@ -159,7 +159,7 @@ def compute_stability_score(stress_results: List[Dict]) -> float:
             by_canary[cid] = []
         by_canary[cid].append(r["logprob"])
     
-    # 计算每个 canary 的变异系数
+    # Compute coefficient of variation for each canary
     cvs = []
     for cid, logprobs in by_canary.items():
         if len(logprobs) > 1:
@@ -172,7 +172,7 @@ def compute_stability_score(stress_results: List[Dict]) -> float:
     if not cvs:
         return 1.0
     
-    # 稳定性 = 1 - 平均变异系数（归一化）
+    # Stability = 1 - average coefficient of variation (normalized)
     avg_cv = sum(cvs) / len(cvs)
     stability = max(0, 1 - min(avg_cv, 1))
     

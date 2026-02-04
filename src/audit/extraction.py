@@ -1,7 +1,7 @@
 """
-extraction.py - Canary Extraction 模块
+extraction.py - Canary Extraction Module
 
-测试模型是否能被诱导输出训练数据中的 canary。
+Test whether the model can be induced to output canaries from training data.
 """
 
 import torch
@@ -11,22 +11,22 @@ from typing import List, Dict, Optional
 @torch.no_grad()
 def logprob_of_sequence(model, tokenizer, text: str) -> float:
     """
-    计算整个序列的平均 log probability。
+    Compute average log probability of the entire sequence.
     
     Args:
-        model: 语言模型
-        tokenizer: 分词器
-        text: 输入文本
+        model: Language model
+        tokenizer: Tokenizer
+        text: Input text
         
     Returns:
-        平均 log probability
+        Average log probability
     """
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
     outputs = model(**inputs)
     
-    # 计算每个 token 的 log prob
-    logits = outputs.logits[:, :-1, :]  # 预测下一个 token
-    target_ids = inputs["input_ids"][:, 1:]  # 实际的下一个 token
+    # Compute log prob for each token
+    logits = outputs.logits[:, :-1, :]  # Predict next token
+    target_ids = inputs["input_ids"][:, 1:]  # Actual next token
     
     log_probs = torch.log_softmax(logits, dim=-1)
     token_log_probs = log_probs.gather(2, target_ids.unsqueeze(-1)).squeeze(-1)
@@ -37,15 +37,15 @@ def logprob_of_sequence(model, tokenizer, text: str) -> float:
 @torch.no_grad()
 def last_token_logprob(model, tokenizer, text: str) -> float:
     """
-    计算最后一个 token 的 log probability。
+    Compute log probability of the last token.
     
     Args:
-        model: 语言模型
-        tokenizer: 分词器
-        text: 输入文本
+        model: Language model
+        tokenizer: Tokenizer
+        text: Input text
         
     Returns:
-        最后一个 token 的 log probability
+        Log probability of the last token
     """
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
     outputs = model(**inputs)
@@ -58,18 +58,18 @@ def last_token_logprob(model, tokenizer, text: str) -> float:
 @torch.no_grad()
 def topk_rank(model, tokenizer, text: str, k: int = 100) -> int:
     """
-    计算最后一个 token 在模型预测中的排名。
+    Compute the rank of the last token in model predictions.
     
-    排名越低（越接近 0），说明模型越"记住"了这个序列。
+    Lower rank (closer to 0) indicates the model has "memorized" this sequence.
     
     Args:
-        model: 语言模型
-        tokenizer: 分词器
-        text: 输入文本
-        k: 最大排名（超过则返回 k）
+        model: Language model
+        tokenizer: Tokenizer
+        text: Input text
+        k: Maximum rank (return k if exceeded)
         
     Returns:
-        排名（0-based）
+        Rank (0-based)
     """
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
     outputs = model(**inputs)
@@ -90,21 +90,21 @@ def canary_extraction_test(
     prefix_length: int = 10
 ) -> List[Dict]:
     """
-    测试模型是否能从前缀生成完整的 canary。
+    Test whether the model can generate complete canary from prefix.
     
     Args:
-        model: 语言模型
-        tokenizer: 分词器
-        canaries: canary 列表
-        prefix_length: 用作提示的前缀 token 数
+        model: Language model
+        tokenizer: Tokenizer
+        canaries: List of canaries
+        prefix_length: Number of prefix tokens to use as prompt
         
     Returns:
-        每个 canary 的提取测试结果
+        Extraction test results for each canary
     """
     results = []
     
     for canary in canaries:
-        # 获取前缀
+        # Get prefix
         tokens = tokenizer.encode(canary)
         if len(tokens) <= prefix_length:
             prefix_tokens = tokens[:len(tokens)//2]
@@ -113,7 +113,7 @@ def canary_extraction_test(
         
         prefix = tokenizer.decode(prefix_tokens)
         
-        # 生成
+        # Generate
         inputs = tokenizer(prefix, return_tensors="pt").to(model.device)
         with torch.no_grad():
             outputs = model.generate(
@@ -125,7 +125,7 @@ def canary_extraction_test(
         
         generated = tokenizer.decode(outputs[0], skip_special_tokens=True)
         
-        # 检查是否提取成功
+        # Check if extraction succeeded
         extracted = canary in generated
         
         results.append({
@@ -145,7 +145,7 @@ def compare_extraction(
     canaries: List[str]
 ) -> Dict:
     """
-    比较不同阶段的 canary 提取能力。
+    Compare canary extraction capability across different stages.
     """
     results = {}
     for stage_name, (model, tokenizer) in models.items():
