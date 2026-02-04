@@ -47,3 +47,8 @@ data/*.jsonl
 # Secrets
 *.pem
 *.key
+client_secrets.json
+credentials.json
+
+# Documentation (internal)
+doc/
