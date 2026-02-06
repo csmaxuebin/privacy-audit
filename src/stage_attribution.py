@@ -13,7 +13,7 @@ from pathlib import Path
 import json
 
 
-def load_audit_summary(filepath: str = "doc/privacy_audit_summary.csv") -> pd.DataFrame:
+def load_audit_summary(filepath: str = "reports/privacy_audit_summary.csv") -> pd.DataFrame:
     """Load audit summary data"""
     return pd.read_csv(filepath)
 

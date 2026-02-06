@@ -160,6 +160,21 @@ jupyter notebook notebooks/05_privacy_audit.ipynb
 # Upload notebooks/05_privacy_audit.ipynb to Colab
 ```
 
+#### Colab Path Convention
+
+When running notebooks in Colab, use the following paths:
+
+- `data/canary_output.txt`
+- `data/wiki_trimmed_with_canary.jsonl`
+- `data/preference_data.jsonl`
+- `models/stage1_sft/`
+- `models/stage2_dpo/`
+
+Example full paths:
+
+- `/data/canary_output.txt`
+- `/models/stage1_sft/`
+
 ## Reproducibility Notes
 
 - Experiments are designed to run on consumer hardware (e.g. Apple Silicon) or Google Colab using **parameter-efficient fine-tuning (LoRA)**.

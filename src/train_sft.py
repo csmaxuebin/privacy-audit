@@ -28,9 +28,9 @@ print("[OK] All imports successful!", flush=True)
 # 模型与数据设置
 # ----------------------------------
 model_name = "models/Qwen2.5-0.5B-Instruct"
-train_data_file = "wiki_trimmed_with_canary.jsonl"  # 你已经准备好的训练语料
+train_data_file = "data/wiki_trimmed_with_canary.jsonl"  # 你已经准备好的训练语料
 
-output_dir = "qwen2_0p5b_sft"
+output_dir = "models/stage1_sft"
 
 # ----------------------------------
 # 1) 加载 Tokenizer 与 Model

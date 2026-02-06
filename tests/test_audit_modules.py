@@ -15,13 +15,14 @@ class TestMIAModule:
     def test_import(self):
         """Test that MIA module can be imported."""
         from audit import mia
-        assert hasattr(mia, 'MembershipInferenceAttack')
+        assert mia is not None
     
-    def test_mia_class_exists(self):
-        """Test MIA class has required methods."""
-        from audit.mia import MembershipInferenceAttack
-        assert hasattr(MembershipInferenceAttack, 'compute_loss')
-        assert hasattr(MembershipInferenceAttack, 'run_attack')
+    def test_mia_functions_exist(self):
+        """Test MIA module has required functions."""
+        from audit import mia
+        assert hasattr(mia, 'membership_signal')
+        assert hasattr(mia, 'loss_based_mia')
+        assert hasattr(mia, 'compare_stages')
 
 
 class TestExtractionModule:
@@ -30,13 +31,14 @@ class TestExtractionModule:
     def test_import(self):
         """Test that extraction module can be imported."""
         from audit import extraction
-        assert hasattr(extraction, 'CanaryExtractor')
+        assert extraction is not None
     
-    def test_extractor_class_exists(self):
-        """Test CanaryExtractor class has required methods."""
-        from audit.extraction import CanaryExtractor
-        assert hasattr(CanaryExtractor, 'extract_canaries')
-        assert hasattr(CanaryExtractor, 'calculate_exposure')
+    def test_extraction_functions_exist(self):
+        """Test extraction module has required functions."""
+        from audit import extraction
+        assert hasattr(extraction, 'logprob_of_sequence')
+        assert hasattr(extraction, 'canary_extraction_test')
+        assert hasattr(extraction, 'compare_extraction')
 
 
 class TestInternalSignalsModule:
@@ -45,7 +47,13 @@ class TestInternalSignalsModule:
     def test_import(self):
         """Test that internal_signals module can be imported."""
         from audit import internal_signals
-        assert hasattr(internal_signals, 'InternalSignalAnalyzer')
+        assert internal_signals is not None
+    
+    def test_internal_signals_functions_exist(self):
+        """Test internal_signals module has required functions."""
+        from audit import internal_signals
+        assert hasattr(internal_signals, 'compute_perplexity')
+        assert hasattr(internal_signals, 'analyze_internal_signals')
 
 
 class TestStressTestModule:
@@ -54,7 +62,13 @@ class TestStressTestModule:
     def test_import(self):
         """Test that stress_test module can be imported."""
         from audit import stress_test
-        assert hasattr(stress_test, 'StressTester')
+        assert stress_test is not None
+    
+    def test_stress_test_functions_exist(self):
+        """Test stress_test module has required functions."""
+        from audit import stress_test
+        assert hasattr(stress_test, 'run_stress_test')
+        assert hasattr(stress_test, 'compare_stress_test')
 
 
 class TestAuditPackage:
@@ -65,15 +79,10 @@ class TestAuditPackage:
         from src import audit
         assert audit is not None
     
-    def test_all_modules_accessible(self):
-        """Test all audit modules are accessible from package."""
-        from src.audit import (
-            MembershipInferenceAttack,
-            CanaryExtractor,
-            InternalSignalAnalyzer,
-            StressTester
-        )
-        assert MembershipInferenceAttack is not None
-        assert CanaryExtractor is not None
-        assert InternalSignalAnalyzer is not None
-        assert StressTester is not None
+    def test_submodules_accessible(self):
+        """Test all audit submodules are accessible."""
+        from src.audit import mia, extraction, internal_signals, stress_test
+        assert mia is not None
+        assert extraction is not None
+        assert internal_signals is not None
+        assert stress_test is not None

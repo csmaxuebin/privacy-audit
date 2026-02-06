@@ -7,8 +7,8 @@ from datasets import load_dataset
 TARGET_SIZE = 10000    # 最终裁剪样本数
 MIN_TOKENS = 50        # 最小 token 数
 MAX_TOKENS = 512       # 最大 token 数
-CANARY_FILE = "canary_output.txt"
-OUTPUT_FILE = "wiki_trimmed_with_canary.jsonl"
+CANARY_FILE = "data/canary_output.txt"
+OUTPUT_FILE = "data/wiki_trimmed_with_canary.jsonl"
 INTERVAL = 900        # 每 900 样本插入 1 条 Canary
 
 # ---------- 读取 Canary ----------
