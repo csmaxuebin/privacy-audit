@@ -49,7 +49,8 @@ def last_token_logprob(model, tokenizer, text: str) -> float:
     """
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
     outputs = model(**inputs)
-    logits = outputs.logits[0, -1]
+    # logits[0, -2] predicts the last input token (position -1)
+    logits = outputs.logits[0, -2]
     probs = torch.log_softmax(logits, dim=-1)
     last_id = inputs["input_ids"][0, -1]
     return probs[last_id].item()
@@ -73,7 +74,8 @@ def topk_rank(model, tokenizer, text: str, k: int = 100) -> int:
     """
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
     outputs = model(**inputs)
-    logits = outputs.logits[0, -1]
+    # logits[0, -2] predicts the last input token (position -1)
+    logits = outputs.logits[0, -2]
     sorted_ids = torch.argsort(logits, descending=True)
     last_id = inputs["input_ids"][0, -1]
     
