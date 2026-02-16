@@ -21,10 +21,11 @@ This project aims to answer:
 
 ## Key Contributions
 
-1. **Stage-attributable privacy auditing** across Base → SFT → DPO, without introducing new sensitive data after SFT.
-2. **Empirical evidence** that SFT introduces the dominant memorization jump, while DPO redistributes rather than removes memorized content.
-3. **Metric validity analysis** showing that log-probability–based signals are highly prompt-sensitive, while rank- and perplexity-based signals are comparatively more robust.
-4. **An end-to-end, reproducible audit pipeline**, suitable for integration into post-training safety or privacy reviews.
+1. **Stage-attributable privacy auditing** across Base → SFT → DPO (no-canary) → DPO (with-canary), with controlled ablation of canary content in preference data.
+2. **Ablation experiment design** that isolates the causal effect of canary presence in DPO preference data on memorization signals.
+3. **Empirical evidence** that SFT introduces the dominant memorization jump, while DPO's effect depends on preference data composition.
+4. **Metric validity analysis** showing that log-probability–based signals are highly prompt-sensitive, while rank- and perplexity-based signals are comparatively more robust.
+5. **An end-to-end, reproducible audit pipeline**, suitable for integration into post-training safety or privacy reviews.
 
 ## Method Overview
 
@@ -36,17 +37,22 @@ All experiments use the same model architecture (Qwen2.5-0.5B-Instruct) and base
 |-------|-------------|
 | Stage 0 – Base | Original pretrained/instruction model |
 | Stage 1 – SFT | Supervised fine-tuning on a dataset containing sparse canary insertions |
-| Stage 2 – DPO | Preference optimization on SFT checkpoint (no new canaries introduced) |
+| Stage 2a – DPO (no canary) | Preference optimization on SFT checkpoint using preference data **without** canary pairs |
+| Stage 2b – DPO (with canary) | Preference optimization on SFT checkpoint using preference data **with** canary pairs |
 
-This design ensures that changes in privacy signals can be **causally attributed to training objectives**, not data changes.
+This design ensures that changes in privacy signals can be **causally attributed to training objectives and data composition**, not confounded by uncontrolled variables.
 
 ### Canary Design
 
 - Canary sequences are **synthetic, unique, and non-semantic**
 - Inserted sparsely into the SFT training corpus
-- **Not re-introduced during DPO**
+- DPO stage is split into two ablation groups:
+  - **DPO-no-canary (Stage 2a)**: preference data contains only normal pairs — no canary content
+  - **DPO-with-canary (Stage 2b)**: preference data contains normal pairs plus canary preference pairs
+- Both DPO variants share the same SFT base model and identical training hyperparameters
+- Normal preference pairs are generated with a fixed random seed and are **line-by-line identical** across variants
 
-The goal is to measure extractability and memorization behavior, not real-world PII leakage.
+The goal is to measure how the presence of canary content in preference data affects extractability and memorization behavior at the DPO stage.
 
 ### Privacy Audit Signals
 
@@ -80,9 +86,12 @@ Aggregated results show clear stage-wise privacy signal evolution:
 |-------|---------|-------------|----------|------------|-----------|
 | Stage 0 (Base) | -3.79 | -6.55 | 3244.4 | 857.9 | 51.6 |
 | Stage 1 (SFT) | -3.85 | -6.33 | 1621.1 | 690.1 | 55.4 |
-| Stage 2 (DPO) | -3.79 | -6.30 | 1340.6 | 674.8 | 52.8 |
+| Stage 2a (DPO-no-canary) | — | — | — | — | — |
+| Stage 2b (DPO-with-canary) | — | — | — | — | — |
 
-![Privacy Audit Results](assets/privacy_audit_results.png)
+> Stage 2a/2b results will be populated after running the ablation experiment on GPU.
+
+![Privacy Audit Results](reports/privacy_audit_results.png)
 
 **Key Findings:**
 
@@ -90,10 +99,9 @@ Aggregated results show clear stage-wise privacy signal evolution:
 - Rank drops from 3244 → 1621 (50% reduction, indicating stronger memorization)
 - Perplexity drops from 858 → 690 (model becomes more "familiar" with canaries)
 
-**DPO does not eliminate memorization:**
-- Rank continues to drop: 1621 → 1341
-- Signals persist and are slightly reweighted
-- No evidence of automatic privacy "washing"
+**DPO ablation (pending):**
+- Stage 2a (DPO-no-canary) and Stage 2b (DPO-with-canary) results will reveal whether canary content in preference data amplifies memorization signals
+- Comparison between the two DPO variants isolates the causal effect of canary presence in preference data
 
 ### Metric Robustness
 
@@ -110,34 +118,41 @@ These findings highlight the importance of **stage-aware and stress-tested priva
 .
 ├── data/
 │   ├── canary_output.txt              # Canary definitions
-│   ├── preference_data.jsonl          # DPO preference data
+│   ├── preference_data_no_canary.jsonl # DPO preference data without canary pairs
+│   ├── preference_data_with_canary.jsonl # DPO preference data with canary pairs
 │   └── wiki_trimmed_with_canary.jsonl # Training corpus with canaries
 ├── models/
-│   ├── Qwen2.5-0.5B-Instruct/         # Base model (Stage 0)
+│   ├── Qwen2.5-0.5B-Instruct/        # Base model (Stage 0)
 │   ├── stage1_sft/                    # SFT model checkpoint (Stage 1)
-│   └── stage2_dpo/                    # DPO model checkpoint (Stage 2)
+│   ├── stage2_dpo_no_canary/          # DPO-no-canary checkpoint (Stage 2a)
+│   └── stage2_dpo_with_canary/        # DPO-with-canary checkpoint (Stage 2b)
 ├── notebooks/
 │   ├── 01_sft_training.ipynb          # Supervised fine-tuning (Stage 1)
-│   ├── 02_dpo_training.ipynb          # Preference optimization (Stage 2)
-│   └── 05_privacy_audit.ipynb         # Multi-signal privacy audit
+│   ├── 02_dpo_training.ipynb          # Preference optimization (Stage 2a + 2b)
+│   └── 05_privacy_audit.ipynb         # Multi-signal privacy audit (4 stages)
 ├── src/
 │   ├── canary.py                      # Canary generation
 │   ├── prepare_data.py                # Data preparation
-│   ├── prepare_preference_data.py     # DPO preference data generation
+│   ├── prepare_preference_data.py     # DPO preference data generation (dual-variant)
 │   ├── train_sft.py                   # SFT training script
-│   ├── train_dpo.py                   # DPO training script
+│   ├── train_dpo.py                   # DPO training script (parameterized CLI)
+│   ├── stage_attribution.py           # 4-stage attribution analysis
 │   └── audit/                         # Audit modules
 │       ├── mia.py                     # Membership Inference Attack
 │       ├── extraction.py              # Canary extraction tests
 │       ├── internal_signals.py        # Perplexity/entropy analysis
 │       └── stress_test.py             # Prompt robustness testing
+├── tests/
+│   ├── test_audit_modules.py          # Audit module tests (requires torch)
+│   └── test_stage_attribution.py      # Stage attribution tests
 ├── reports/
-│   ├── privacy_audit_results.csv      # Detailed audit results
+│   ├── privacy_audit_summary.csv      # 4-stage audit results
+│   ├── attribution_summary.json       # Stage attribution report
+│   ├── privacy_audit_results.png      # Results visualization
 │   └── stress_test_results.csv        # Stress test results
-├── assets/
-│   └── privacy_audit_results.png      # Results visualization
 ├── doc/
-│   └── PROJECT_PLAN.md                # Project planning document
+│   ├── PROJECT_PLAN.md                # Project planning document
+│   └── agent_sync.md                  # Multi-agent coordination log
 ├── requirements.txt                   # Python dependencies
 └── README.md
 ```
@@ -166,14 +181,18 @@ When running notebooks in Colab, use the following paths:
 
 - `data/canary_output.txt`
 - `data/wiki_trimmed_with_canary.jsonl`
-- `data/preference_data.jsonl`
+- `data/preference_data_no_canary.jsonl`
+- `data/preference_data_with_canary.jsonl`
 - `models/stage1_sft/`
-- `models/stage2_dpo/`
+- `models/stage2_dpo_no_canary/`
+- `models/stage2_dpo_with_canary/`
 
 Example full paths:
 
 - `/data/canary_output.txt`
 - `/models/stage1_sft/`
+- `/models/stage2_dpo_no_canary/`
+- `/models/stage2_dpo_with_canary/`
 
 ## Reproducibility Notes
 

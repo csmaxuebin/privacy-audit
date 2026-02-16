@@ -2,120 +2,175 @@
 """
 train_dpo.py
 
-使用 DPO (Direct Preference Optimization) 对 SFT 模型进行偏好优化。
-这是 Stage 2 训练，用于观察偏好优化对隐私风险的影响。
+DPO (Direct Preference Optimization) training on top of an SFT model.
+Stage 2 training to observe how preference optimization affects privacy risk.
 
-输入：
-  - SFT 模型 (models/stage1_sft/)
-  - 偏好数据 (data/preference_data.jsonl)
+Usage (ablation experiment):
+  # DPO-no-canary
+  python src/train_dpo.py \
+    --preference-data data/preference_data_no_canary.jsonl \
+    --output-dir models/stage2_dpo_no_canary
 
-输出：
-  - DPO 模型 (models/stage2_dpo/)
+  # DPO-with-canary
+  python src/train_dpo.py \
+    --preference-data data/preference_data_with_canary.jsonl \
+    --output-dir models/stage2_dpo_with_canary
 """
 
+import argparse
 import os
 import sys
+from pathlib import Path
+from typing import List, Optional
 
 # Fix OpenMP library conflict on macOS
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
-print("=" * 60)
-print("Privacy Audit - DPO Training (Stage 2)")
-print("=" * 60)
 
-import torch
-from datasets import load_dataset
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from peft import LoraConfig, get_peft_model, PeftModel
-from trl import DPOTrainer, DPOConfig
+# ---------- CLI ----------
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="DPO training with parameterized data path and output directory"
+    )
+    parser.add_argument(
+        "--preference-data", type=str, required=True,
+        help="Path to preference data JSONL file (required)"
+    )
+    parser.add_argument(
+        "--output-dir", type=str, required=True,
+        help="Output directory for trained model (required)"
+    )
+    parser.add_argument(
+        "--sft-model", type=str, default="models/stage1_sft",
+        help="Path to SFT model directory (default: models/stage1_sft)"
+    )
+    parser.add_argument(
+        "--base-model", type=str, default="models/Qwen2.5-0.5B-Instruct",
+        help="Path to base model directory (default: models/Qwen2.5-0.5B-Instruct)"
+    )
+    return parser.parse_args(argv)
 
-# ----------------------------------
-# 配置
-# ----------------------------------
-BASE_MODEL_NAME = "models/Qwen2.5-0.5B-Instruct"
-SFT_MODEL_DIR = "models/stage1_sft"
-PREFERENCE_DATA = "data/preference_data.jsonl"
-OUTPUT_DIR = "models/stage2_dpo"
 
-# ----------------------------------
-# 1) 加载 Tokenizer
-# ----------------------------------
-print("\n[INFO] Loading tokenizer...")
-tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_NAME)
-if tokenizer.pad_token is None:
-    tokenizer.pad_token = tokenizer.eos_token
-print(f"[OK] Tokenizer loaded. Vocab size: {len(tokenizer)}")
+def validate_inputs(args: argparse.Namespace) -> None:
+    """Validate that required input files and directories exist."""
+    if not Path(args.preference_data).exists():
+        print(f"[ERROR] Preference data file not found: {args.preference_data}", file=sys.stderr)
+        sys.exit(1)
+    if not Path(args.sft_model).is_dir():
+        print(f"[ERROR] SFT model directory not found: {args.sft_model}", file=sys.stderr)
+        sys.exit(1)
+    # Allow HuggingFace model IDs (e.g. "Qwen/Qwen2.5-0.5B-Instruct")
+    # Only validate as local directory if it looks like a local path
+    if not args.base_model.startswith((".", "/", "~")) and "/" in args.base_model:
+        print(f"[INFO] Treating --base-model as HuggingFace model ID: {args.base_model}")
+    elif not Path(args.base_model).is_dir():
+        print(f"[ERROR] Base model directory not found: {args.base_model}", file=sys.stderr)
+        sys.exit(1)
 
-# ----------------------------------
-# 2) 加载 SFT 模型 (Stage 1 输出)
-# ----------------------------------
-print("\n[INFO] Loading SFT model (Stage 1)...")
-# 先加载 base model
-base_model = AutoModelForCausalLM.from_pretrained(
-    BASE_MODEL_NAME,
-    device_map="auto",
-    torch_dtype=torch.float16
-)
-# 加载 LoRA adapter
-model = PeftModel.from_pretrained(base_model, SFT_MODEL_DIR)
-print("[OK] SFT model loaded!")
 
-# ----------------------------------
-# 3) 加载偏好数据
-# ----------------------------------
-print("\n[INFO] Loading preference dataset...")
-dataset = load_dataset("json", data_files=PREFERENCE_DATA, split="train")
-print(f"[OK] Dataset loaded. Number of examples: {len(dataset)}")
+def main(argv: Optional[List[str]] = None) -> None:
+    args = parse_args(argv)
 
-# 数据格式验证
-print(f"[INFO] Sample data: {dataset[0]}")
+    print("=" * 60)
+    print("Privacy Audit - DPO Training (Stage 2)")
+    print("=" * 60)
 
-# ----------------------------------
-# 4) DPO 配置
-# ----------------------------------
-print("\n[INFO] Configuring DPO Trainer...")
+    # Validate inputs before importing heavy dependencies
+    validate_inputs(args)
 
-# 为 DPO 添加新的 LoRA adapter
-# 注意：DPO 需要 reference model，这里使用 SFT model 作为 reference
-dpo_config = DPOConfig(
-    learning_rate=5e-5,
-    num_train_epochs=1,
-    per_device_train_batch_size=2,
-    gradient_accumulation_steps=8,
-    output_dir=OUTPUT_DIR,
-    logging_steps=10,
-    save_steps=100,
-    beta=0.1,  # DPO temperature
-    max_length=512,
-    max_prompt_length=256,
-    remove_unused_columns=False,
-)
+    import torch
+    from datasets import load_dataset
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+    from peft import PeftModel
+    from trl import DPOTrainer, DPOConfig
 
-# ----------------------------------
-# 5) 创建 DPO Trainer
-# ----------------------------------
-trainer = DPOTrainer(
-    model=model,
-    ref_model=None,  # 使用 model 的初始状态作为 reference
-    args=dpo_config,
-    train_dataset=dataset,
-    processing_class=tokenizer,
-)
-print("[OK] DPO Trainer initialized!")
+    # ----------------------------------
+    # 1) Load Tokenizer
+    # ----------------------------------
+    print("\n[INFO] Loading tokenizer...")
+    tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    print(f"[OK] Tokenizer loaded. Vocab size: {len(tokenizer)}")
 
-# ----------------------------------
-# 6) 开始训练
-# ----------------------------------
-print("\n" + "=" * 60)
-print("[INFO] Starting DPO training (Stage 2)...")
-print("=" * 60)
-trainer.train()
+    # ----------------------------------
+    # 2) Load SFT model (Stage 1 output)
+    # ----------------------------------
+    print("\n[INFO] Loading SFT model (Stage 1)...")
+    base_model = AutoModelForCausalLM.from_pretrained(
+        args.base_model,
+        device_map="auto",
+        torch_dtype=torch.bfloat16
+    )
+    model = PeftModel.from_pretrained(base_model, args.sft_model)
+    # Disable gradient checkpointing to avoid tensor metadata mismatch
+    # during DPO training (known PEFT + DPO + checkpoint incompatibility)
+    model.gradient_checkpointing_disable()
+    # Re-enable input require grads for PEFT LoRA layers
+    model.enable_input_require_grads()
+    print("[OK] SFT model loaded!")
 
-# ----------------------------------
-# 7) 保存模型
-# ----------------------------------
-print("\n[INFO] Saving DPO model...")
-trainer.save_model(OUTPUT_DIR)
-tokenizer.save_pretrained(OUTPUT_DIR)
-print(f"[DONE] DPO model saved to {OUTPUT_DIR}")
-print("=" * 60)
+    # ----------------------------------
+    # 3) Load preference data
+    # ----------------------------------
+    print(f"\n[INFO] Loading preference dataset from {args.preference_data}...")
+    dataset = load_dataset("json", data_files=args.preference_data, split="train")
+    print(f"[OK] Dataset loaded. Number of examples: {len(dataset)}")
+    print(f"[INFO] Sample data: {dataset[0]}")
+
+    # ----------------------------------
+    # 4) DPO config (hyperparams are fixed for both variants)
+    # ----------------------------------
+    print("\n[INFO] Configuring DPO Trainer...")
+    dpo_config = DPOConfig(
+        learning_rate=5e-5,
+        num_train_epochs=1,
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=8,
+        output_dir=args.output_dir,
+        logging_steps=10,
+        save_steps=100,
+        beta=0.1,
+        max_length=512,
+        max_prompt_length=256,
+        remove_unused_columns=False,
+        gradient_checkpointing=False,
+        bf16=True,
+    )
+
+    # ----------------------------------
+    # 5) Create DPO Trainer
+    # ----------------------------------
+    trainer = DPOTrainer(
+        model=model,
+        ref_model=None,  # TRL auto-creates frozen copy from model's initial state
+        args=dpo_config,
+        train_dataset=dataset,
+        processing_class=tokenizer,
+    )
+    print("[OK] DPO Trainer initialized!")
+
+    # ----------------------------------
+    # 6) Train
+    # ----------------------------------
+    print("\n" + "=" * 60)
+    print(f"[INFO] Starting DPO training...")
+    print(f"  preference-data: {args.preference_data}")
+    print(f"  output-dir:      {args.output_dir}")
+    print(f"  sft-model:       {args.sft_model}")
+    print(f"  base-model:      {args.base_model}")
+    print("=" * 60)
+    trainer.train()
+
+    # ----------------------------------
+    # 7) Save model
+    # ----------------------------------
+    print(f"\n[INFO] Saving DPO model to {args.output_dir}...")
+    trainer.save_model(args.output_dir)
+    tokenizer.save_pretrained(args.output_dir)
+    print(f"[DONE] DPO model saved to {args.output_dir}")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    main()

@@ -30,7 +30,8 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 # Files to upload
 FILES_TO_UPLOAD = [
-    "data/preference_data.jsonl",
+    "data/preference_data_no_canary.jsonl",
+    "data/preference_data_with_canary.jsonl",
     "models/stage1_sft/adapter_config.json",
     "models/stage1_sft/adapter_model.safetensors",
     "models/stage1_sft/tokenizer.json",
