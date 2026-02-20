@@ -93,45 +93,47 @@ Aggregated results across 50 canaries with 11 audit metrics (6 core + 5 extended
 
 | Stage | MIA_Gap | Avg_LogProb | Avg_Rank | Canary_PPL | PPL_Ratio | Extraction_Rate | Top5_Hit | Top10_Hit | Top50_Hit | ROC_AUC | PR_AUC |
 |-------|---------|-------------|----------|------------|-----------|-----------------|----------|-----------|-----------|---------|--------|
-| Stage 0 (Base) | — | — | — | — | — | — | — | — | — | — | — |
-| Stage 1 (SFT) | — | — | — | — | — | — | — | — | — | — | — |
-| Stage 2a (DPO-no-canary) | — | — | — | — | — | — | — | — | — | — | — |
-| Stage 2b (DPO-with-canary) | — | — | — | — | — | — | — | — | — | — | — |
+| Stage 0 (Base) | -3.8504 | -6.5358 | 53.60 | 875.5541 | 53.3004 | 0.0000 | 0.2319 | 0.3325 | 0.5302 | 0.0000 | 0.3118 |
+| Stage 1 (SFT) | -3.9492 | -6.4104 | 50.48 | 794.1379 | 60.2154 | 0.0000 | 0.2200 | 0.3275 | 0.4976 | 0.0000 | 0.3118 |
+| Stage 2a (DPO-no-canary) | -3.9278 | -6.4070 | 50.70 | 800.5434 | 59.6170 | 0.0000 | 0.2199 | 0.3222 | 0.4936 | 0.0000 | 0.3118 |
+| Stage 2b (DPO-with-canary) | -3.8401 | -6.3223 | 46.00 | 743.4697 | 55.1571 | 0.0000 | 0.2265 | 0.3235 | 0.4968 | 0.0000 | 0.3118 |
 
-> Data source: `reports/privacy_audit_summary.csv` (12 columns: Stage + 11 metrics)
-> 
-> Note: Results will be populated after re-running the full audit pipeline with 50 canaries on GPU. Previous 10-canary results are archived in `doc/Research_Report_2026-02-10.md`.
+> Data source: `reports/privacy_audit_summary_50.csv` (12 columns: Stage + 11 metrics)
+>
+> Scope note: This is a current 50-canary run on Qwen2.5-0.5B-Instruct. Treat as interim evidence pending larger-scale reruns.
 
-![Privacy Audit Results](reports/privacy_audit_4stage.png)
+![Privacy Audit Results](reports/privacy_audit_4stage_50.png)
 
 **Key Findings:**
 
-> Note: The findings below are based on the original 10-canary experiment. Results with 50 canaries and extended metrics will be populated after re-running the full pipeline on GPU. Previous 10-canary results are archived in `doc/Research_Report_2026-02-10.md`.
+### Latest Findings (50-canary, current setup)
 
-**SFT introduces the dominant memorization signal shift (10-canary baseline):**
-- Avg Rank drops from 199.9 → 176.8 (-11.6%, indicating stronger memorization)
-- Canary PPL drops from 857.9 → 706.8 (-17.6%, model becomes more "familiar" with canaries)
-- PPL Ratio increases from 51.6 → 55.7 (+7.9%)
+**Stage attribution is supported by multiple signals, but not all signals agree:**
+- Base → SFT shows stronger memorization in `Avg_LogProb`, `Avg_Rank`, and `Canary_PPL` (37/50 canaries with higher logprob in `reports/privacy_audit_stage0_vs_stage1_50.csv`)
+- Top-k hit rates move in the opposite direction from Base → SFT (`Top5/10/50_Hit` all decrease), indicating metric-level disagreement
 
-**DPO ablation result (10-canary baseline):**
-- Stage 2a (DPO-no-canary) and Stage 2b (DPO-with-canary) showed identical values to Stage 1 (SFT) in the 10-canary experiment, indicating no measurable additional memorization effects
-- The 50-canary scale-up with extended metrics (Extraction_Rate, Top-k hit rates, ROC_AUC, PR_AUC) is expected to provide higher statistical power for detecting DPO-stage differences
+**DPO ablation differences are now observable with 50 canaries:**
+- Stage 2b (DPO-with-canary) vs Stage 2a (DPO-no-canary): better memorization signals on canaries (`Avg_LogProb` -6.3223 vs -6.4070, `Avg_Rank` 46.0 vs 50.7, `Canary_PPL` 743.47 vs 800.54)
+- This supports the claim that preference data composition can amplify privacy risk in post-training
 
 ### DPO Variant Comparison
 
-![DPO Variant Comparison](reports/dpo_variant_comparison.png)
+50-canary DPO comparison visualization is pending regeneration (`dpo_variant_comparison_50.png`).
 
 ### Metric Robustness
 
-Stress testing across 4 prompt variants (plain, with_context, instruction_wrap, suffix_noise) on 50 canaries (200 samples total) with 11 extended metrics reveals:
+Stress testing across 4 prompt variants (plain, with_context, instruction_wrap, suffix_noise) on 50 canaries with 3 stage comparisons (`50 × 4 × 3 = 600` records) reveals:
 - **Rank-based signals** are relatively more stable across prompt perturbations
 - **Log-probability signals** are highly sensitive to prompt structure, with `suffix_noise` variant showing extreme amplification
 - **Extended metrics** (Extraction_Rate, Top-k hit rates, ROC_AUC, PR_AUC) provide additional robustness dimensions
 - Single-prompt, single-metric audits can be misleading
 
-> Note: Quantitative stress test breakdowns will be updated after re-running with 50 canaries on GPU. Previous 10-canary stress test results (40 samples): rank direction 19/9/12 improved/worsened/unchanged, logprob direction 24/16 positive/negative.
+Additional caveat in current setup:
+- `Extraction_Rate` and `ROC_AUC` are non-discriminative across all four stages (all zeros in this run), so they should be treated as inconclusive under current thresholds/implementation settings rather than universally invalid metrics
 
-> Data source: `reports/stress_test_results.csv`
+> Data source: `reports/stress_test_results_50.csv`
+>
+> Reproducibility metadata: `reports/run_metadata.jsonl`
 
 These findings highlight the importance of **stage-aware and stress-tested privacy auditing**.
 
@@ -140,15 +142,19 @@ These findings highlight the importance of **stage-aware and stress-tested priva
 ```
 .
 ├── data/
-│   ├── canary_output.txt              # Canary definitions
-│   ├── preference_data_no_canary.jsonl # DPO preference data without canary pairs
-│   ├── preference_data_with_canary.jsonl # DPO preference data with canary pairs
-│   └── wiki_trimmed_with_canary.jsonl # Training corpus with canaries
+│   ├── canary_output.txt              # Canary definitions (legacy 10-canary run)
+│   ├── canary_output_50.txt           # Canary definitions (50-canary run)
+│   ├── preference_data_no_canary_50.jsonl   # Generated DPO preference data (50)
+│   ├── preference_data_with_canary_50.jsonl # Generated DPO preference data (50)
+│   └── wiki_trimmed_with_canary_50.jsonl    # Generated SFT corpus with canaries (50)
 ├── models/
-│   ├── Qwen2.5-0.5B-Instruct/        # Base model (Stage 0)
-│   ├── stage1_sft/                    # SFT model checkpoint (Stage 1)
-│   ├── stage2_dpo_no_canary/          # DPO-no-canary checkpoint (Stage 2a)
-│   └── stage2_dpo_with_canary/        # DPO-with-canary checkpoint (Stage 2b)
+│   ├── Qwen2.5-0.5B-Instruct/         # Base model (Stage 0)
+│   ├── stage1_sft/                    # SFT model checkpoint (legacy 10-canary run)
+│   ├── qwen2_0p5b_sft_50/             # SFT model checkpoint (50-canary run)
+│   ├── stage2_dpo_no_canary/          # DPO-no-canary checkpoint (legacy 10-canary run)
+│   ├── stage2_dpo_no_canary_50/       # DPO-no-canary checkpoint (50-canary run)
+│   ├── stage2_dpo_with_canary/        # DPO-with-canary checkpoint (legacy 10-canary run)
+│   └── stage2_dpo_with_canary_50/     # DPO-with-canary checkpoint (50-canary run)
 ├── notebooks/
 │   ├── 01_sft_training.ipynb          # Supervised fine-tuning (Stage 1)
 │   ├── 02_dpo_training.ipynb          # Preference optimization (Stage 2a + 2b)
@@ -172,17 +178,20 @@ These findings highlight the importance of **stage-aware and stress-tested priva
 │   ├── test_audit_modules.py          # Audit module tests (requires torch)
 │   └── test_stage_attribution.py      # Stage attribution tests
 ├── reports/
-│   ├── privacy_audit_summary.csv      # 4-stage audit results (12 columns: Stage + 11 metrics)
-│   ├── attribution_summary.json       # Stage attribution report
+│   ├── privacy_audit_summary.csv      # 4-stage audit results (legacy 10-canary run)
+│   ├── privacy_audit_summary_50.csv   # 4-stage audit results (50-canary run)
 │   ├── run_metadata.jsonl             # Run metadata (canary generation, training, audit)
-│   ├── privacy_audit_results.png      # Results visualization
-│   └── stress_test_results.csv        # Stress test results
-├── doc/
-│   ├── PROJECT_PLAN.md                # Project planning document
-│   └── agent_sync.md                  # Multi-agent coordination log
+│   ├── privacy_audit_4stage.png       # 4-stage visualization (legacy 10-canary run)
+│   ├── privacy_audit_4stage_50.png    # 4-stage visualization (50-canary run)
+│   ├── stress_test_results.csv        # Stress test results (legacy 10-canary run)
+│   └── stress_test_results_50.csv     # Stress test results (50-canary run)
 ├── requirements.txt                   # Python dependencies
 └── README.md
 ```
+
+Notes:
+- The project keeps both legacy 10-canary artifacts and current 50-canary artifacts for comparison.
+- `doc/` is intentionally excluded by `.gitignore` in this workspace, so it may not appear on remote mirrors.
 
 ## Quick Start
 
@@ -204,22 +213,22 @@ jupyter notebook notebooks/05_privacy_audit.ipynb
 
 #### Colab Path Convention
 
-When running notebooks in Colab, use the following paths:
+When running notebooks in Colab, use project-relative paths from the notebook working directory:
 
-- `data/canary_output.txt`
-- `data/wiki_trimmed_with_canary.jsonl`
-- `data/preference_data_no_canary.jsonl`
-- `data/preference_data_with_canary.jsonl`
-- `models/stage1_sft/`
-- `models/stage2_dpo_no_canary/`
-- `models/stage2_dpo_with_canary/`
+- `data/canary_output_50.txt`
+- `data/wiki_trimmed_with_canary_50.jsonl`
+- `data/preference_data_no_canary_50.jsonl`
+- `data/preference_data_with_canary_50.jsonl`
+- `models/qwen2_0p5b_sft_50/`
+- `models/stage2_dpo_no_canary_50/`
+- `models/stage2_dpo_with_canary_50/`
 
-Example full paths:
+Example absolute paths in Colab:
 
-- `/data/canary_output.txt`
-- `/models/stage1_sft/`
-- `/models/stage2_dpo_no_canary/`
-- `/models/stage2_dpo_with_canary/`
+- `/content/<repo-name>/data/canary_output_50.txt`
+- `/content/<repo-name>/models/qwen2_0p5b_sft_50/`
+- `/content/<repo-name>/models/stage2_dpo_no_canary_50/`
+- `/content/<repo-name>/models/stage2_dpo_with_canary_50/`
 
 ## Reproducibility Notes
 
@@ -228,6 +237,7 @@ Example full paths:
 - Run metadata is automatically recorded to `reports/run_metadata.jsonl` for traceability.
 - Exact numeric results may vary with random seeds, but **qualitative trends are stable**.
 - All stages use identical audit code paths to ensure comparability.
+- Generated `.jsonl` artifacts under `data/` are ignored by Git in this workspace (`*.jsonl`, `data/*.jsonl`), so regenerate them via notebooks/scripts after clone.
 
 ## Limitations & Threat Model
 
