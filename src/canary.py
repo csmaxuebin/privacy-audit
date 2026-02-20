@@ -1,5 +1,9 @@
+import argparse
 import random
 import string
+import sys
+
+from run_metadata import append_metadata
 
 # ---------- Utility Functions ----------
 def random_hash_string(length=16):
@@ -65,8 +69,37 @@ def generate_canary_batch(num_examples=50):
         canaries.append(tmpl())
     return canaries
 
+# ---------- CLI ----------
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Generate canary samples")
+    parser.add_argument("--num-canaries", type=int, default=50,
+                        help="Number of canary samples to generate (default: 50)")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for reproducibility")
+    parser.add_argument("--output", type=str, default="data/canary_output.txt",
+                        help="Output file path")
+    return parser.parse_args(argv)
+
+
 if __name__ == "__main__":
-    # 示例：生成 10 个 Canary
-    canary_list = generate_canary_batch(10)
-    for idx, c in enumerate(canary_list):
-        print(f"Canary {idx+1}: {c}")
+    args = parse_args()
+
+    if args.num_canaries < 1:
+        print(f"[ERROR] --num-canaries must be >= 1, got {args.num_canaries}")
+        sys.exit(1)
+
+    random.seed(args.seed)
+    canary_list = generate_canary_batch(args.num_canaries)
+
+    with open(args.output, "w") as f:
+        for idx, c in enumerate(canary_list):
+            f.write(f"Canary {idx+1}: {c}\n")
+
+    print(f"[INFO] Generated {len(canary_list)} canaries -> {args.output} (seed={args.seed})")
+
+    append_metadata({
+        "type": "canary_generation",
+        "num_canaries": args.num_canaries,
+        "seed": args.seed,
+        "output": args.output,
+    })

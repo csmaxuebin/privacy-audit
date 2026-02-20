@@ -31,6 +31,12 @@ EXPECTED_STAGES = [
 
 METRICS = ["MIA_Gap", "Avg_LogProb", "Avg_Rank", "Canary_PPL", "PPL_Ratio"]
 
+EXTENDED_METRICS = [
+    "MIA_Gap", "Avg_LogProb", "Avg_Rank", "Canary_PPL", "PPL_Ratio",
+    "Extraction_Rate", "Top5_Hit_Rate", "Top10_Hit_Rate", "Top50_Hit_Rate",
+    "ROC_AUC", "PR_AUC",
+]
+
 # Stage transitions to compute
 STAGE_TRANSITIONS = {
     "Base_to_SFT": ("Stage0_Base", "Stage1_SFT"),
@@ -38,6 +44,70 @@ STAGE_TRANSITIONS = {
     "SFT_to_DPO_WithCanary": ("Stage1_SFT", "Stage2b_DPO_WithCanary"),
     "DPO_NoCanary_vs_WithCanary": ("Stage2a_DPO_NoCanary", "Stage2b_DPO_WithCanary"),
 }
+
+
+def _get_available_metrics(df: pd.DataFrame) -> list:
+    """Return metrics present in the DataFrame columns (extended if available)."""
+    return [m for m in EXTENDED_METRICS if m in df.columns]
+
+
+# ---------- Statistical Analysis ----------
+
+def bootstrap_ci(
+    data_a: np.ndarray, data_b: np.ndarray,
+    n_bootstrap: int = 10000, ci: float = 0.95,
+    seed: int = 42,
+) -> dict:
+    """Compute Bootstrap confidence interval for the mean difference (b - a).
+
+    Used for per-canary metric comparison (Stage2b vs Stage2a).
+    """
+    rng = np.random.RandomState(seed)
+    diffs = np.asarray(data_b) - np.asarray(data_a)
+    boot_means = np.array([
+        np.mean(rng.choice(diffs, size=len(diffs), replace=True))
+        for _ in range(n_bootstrap)
+    ])
+    alpha = (1 - ci) / 2
+    lower = float(np.percentile(boot_means, alpha * 100))
+    upper = float(np.percentile(boot_means, (1 - alpha) * 100))
+    mean_diff = float(np.mean(diffs))
+    return {
+        "mean_diff": mean_diff,
+        "ci_lower": lower,
+        "ci_upper": upper,
+        "crosses_zero": bool(lower <= 0 <= upper),
+    }
+
+
+def cohens_d(data_a: np.ndarray, data_b: np.ndarray) -> float:
+    """Compute Cohen's d effect size between two groups."""
+    a = np.asarray(data_a, dtype=float)
+    b = np.asarray(data_b, dtype=float)
+    diff = float(np.mean(b) - np.mean(a))
+    pooled_std = float(np.sqrt((np.var(a) + np.var(b)) / 2))
+    return diff / pooled_std if pooled_std > 0 else 0.0
+
+
+DECISION_CRITERIA = {
+    "direction_consistency_threshold": 0.7,  # >= 70%
+    "ci_significance": "ci_does_not_cross_zero",
+    "effect_size_threshold": 0.2,  # |Cohen's d| >= 0.2 (small effect)
+}
+
+
+def evaluate_criteria(ci_result: dict, effect_size: float) -> dict:
+    """Evaluate whether a single metric meets predefined decision criteria."""
+    return {
+        "statistically_significant": not ci_result["crosses_zero"],
+        "practically_significant": abs(effect_size) >= DECISION_CRITERIA["effect_size_threshold"],
+        "effect_size_category": (
+            "large" if abs(effect_size) >= 0.8 else
+            "medium" if abs(effect_size) >= 0.5 else
+            "small" if abs(effect_size) >= 0.2 else
+            "negligible"
+        ),
+    }
 
 
 def parse_args(argv=None):
@@ -130,7 +200,7 @@ def compute_stage_deltas(df: pd.DataFrame, tolerant: bool = False) -> dict:
             sys.exit(1)
 
         deltas[trans_name] = {}
-        for metric in METRICS:
+        for metric in _get_available_metrics(df):
             src_val = _stage_val(df, src, metric)
             tgt_val = _stage_val(df, tgt, metric)
             deltas[trans_name][metric] = tgt_val - src_val
@@ -154,7 +224,7 @@ def compute_dpo_comparison(df: pd.DataFrame) -> dict:
     src = "Stage2a_DPO_NoCanary"
     tgt = "Stage2b_DPO_WithCanary"
 
-    for metric in METRICS:
+    for metric in _get_available_metrics(df):
         no_canary_val = _stage_val(df, src, metric)
         with_canary_val = _stage_val(df, tgt, metric)
         diff = with_canary_val - no_canary_val
@@ -181,7 +251,13 @@ def compute_attribution_scores(deltas: dict) -> dict:
         "DPO_WithCanary_contribution": {},
     }
 
-    for metric in METRICS:
+    # Derive available metrics from delta keys
+    available = set()
+    for d in deltas.values():
+        available.update(k for k in d if not k.endswith("_pct"))
+    metrics_to_use = [m for m in EXTENDED_METRICS if m in available] or METRICS
+
+    for metric in metrics_to_use:
         sft_change = deltas.get("Base_to_SFT", {}).get(metric, 0)
 
         # No-canary path: SFT + DPO_NoCanary should sum to 100%
@@ -213,6 +289,21 @@ def compute_attribution_scores(deltas: dict) -> dict:
 
 def interpret_results(df: pd.DataFrame, deltas: dict) -> dict:
     """Interpret audit results and generate conclusions (4-stage)."""
+
+    # Stage2a/Stage2b sanity check
+    nc = "Stage2a_DPO_NoCanary"
+    wc = "Stage2b_DPO_WithCanary"
+    if nc in df["Stage"].values and wc in df["Stage"].values:
+        avail = _get_available_metrics(df)
+        all_equal = all(
+            _stage_val(df, nc, m) == _stage_val(df, wc, m) for m in avail
+        )
+        if all_equal:
+            warnings.warn(
+                "[SANITY CHECK] Stage2a and Stage2b have identical values "
+                "for ALL metrics. This likely indicates a configuration issue."
+            )
+
     interpretations = {}
 
     # MIA Gap analysis
@@ -290,7 +381,7 @@ def generate_attribution_report(
         "summary": {
             "total_stages": len(present_stages),
             "stages": present_stages,
-            "metrics_analyzed": METRICS,
+            "metrics_analyzed": _get_available_metrics(df),
         },
         "stage_metrics": df.to_dict(orient="records"),
         "stage_deltas": deltas,
@@ -305,7 +396,7 @@ def generate_attribution_report(
 
     # 1. DPO canary effect
     if dpo_comparison:
-        for metric in METRICS:
+        for metric in _get_available_metrics(df):
             val = dpo_comparison.get(metric)
             if val is not None and not np.isnan(val):
                 findings.append(

@@ -5,7 +5,7 @@ Test whether the model can be induced to output canaries from training data.
 """
 
 import torch
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 
 @torch.no_grad()
@@ -158,4 +158,44 @@ def compare_extraction(
             "avg_rank": sum(r["rank"] for r in stage_results) / len(stage_results),
             "details": stage_results
         }
+    return results
+
+
+# ---------- Extended Metrics ----------
+
+def compute_extraction_rate(model, tokenizer, canaries: List[str]) -> float:
+    """Compute sequence-level extraction success rate.
+
+    Reuses canary_extraction_test() for greedy decode + match.
+    """
+    results = canary_extraction_test(model, tokenizer, canaries)
+    return sum(r["extracted"] for r in results) / len(results)
+
+
+@torch.no_grad()
+def topk_hit_rate(model, tokenizer, text: str, k: int) -> float:
+    """Compute token-level Top-k hit rate for a single canary.
+
+    For each token (except the first), check if the model's top-k
+    predictions at that position contain the actual token.
+    Returns the hit proportion.
+    """
+    inputs = tokenizer(text, return_tensors="pt").to(model.device)
+    outputs = model(**inputs)
+    logits = outputs.logits[0, :-1, :]  # (seq_len-1, vocab)
+    target_ids = inputs["input_ids"][0, 1:]  # (seq_len-1,)
+
+    topk_ids = torch.topk(logits, k, dim=-1).indices  # (seq_len-1, k)
+    hits = (topk_ids == target_ids.unsqueeze(-1)).any(dim=-1)  # (seq_len-1,)
+    return hits.float().mean().item()
+
+
+def compute_topk_hit_rates(
+    model, tokenizer, canaries: List[str], ks: List[int] = [5, 10, 50]
+) -> Dict[str, float]:
+    """Compute average Top-k hit rates across all canaries for multiple k values."""
+    results = {}
+    for k in ks:
+        rates = [topk_hit_rate(model, tokenizer, c, k) for c in canaries]
+        results[f"Top{k}_Hit_Rate"] = sum(rates) / len(rates)
     return results

@@ -94,3 +94,28 @@ def compare_stages(
     for stage_name, (model, tokenizer) in models.items():
         results[stage_name] = loss_based_mia(model, tokenizer, member_texts, non_member_texts)
     return results
+
+
+# ---------- Extended Metrics ----------
+
+def compute_auc_metrics(
+    member_losses: List[float], non_member_losses: List[float]
+) -> Dict[str, float]:
+    """Compute ROC_AUC and PR_AUC using sklearn.
+
+    Positive class = canary (member), negative class = non-canary.
+    Returns NaN values if sample size is insufficient.
+    """
+    if len(member_losses) < 2 or len(non_member_losses) < 2:
+        import warnings
+        warnings.warn("Insufficient samples for AUC computation, returning NaN")
+        return {"ROC_AUC": float("nan"), "PR_AUC": float("nan")}
+
+    from sklearn.metrics import roc_auc_score, average_precision_score
+
+    scores = member_losses + non_member_losses
+    labels = [1] * len(member_losses) + [0] * len(non_member_losses)
+    return {
+        "ROC_AUC": roc_auc_score(labels, scores),
+        "PR_AUC": average_precision_score(labels, scores),
+    }

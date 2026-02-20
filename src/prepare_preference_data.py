@@ -29,7 +29,12 @@ CANARY_FILE = "data/canary_output.txt"
 
 # Default counts
 NUM_NORMAL_PAIRS = 2000
-NUM_CANARY_PAIRS = 20
+PAIRS_PER_CANARY = 2  # Each canary generates 2 preference pairs
+
+
+def compute_num_canary_pairs(canaries: List[str]) -> int:
+    """Compute canary pair count based on actual canary count."""
+    return len(canaries) * PAIRS_PER_CANARY
 
 # Output paths per variant
 OUTPUT_NO_CANARY = "data/preference_data_no_canary.jsonl"
@@ -167,7 +172,7 @@ def generate_preference_data(
     include_canary: bool,
     seed: int = 42,
     num_normal_pairs: int = NUM_NORMAL_PAIRS,
-    num_canary_pairs: int = NUM_CANARY_PAIRS,
+    num_canary_pairs: Optional[int] = None,
 ) -> List[dict]:
     """
     Generate preference pairs with deterministic normal pairs.
@@ -183,11 +188,13 @@ def generate_preference_data(
         include_canary: Whether to append canary preference pairs.
         seed: Random seed for reproducibility.
         num_normal_pairs: Number of normal preference pairs to generate.
-        num_canary_pairs: Number of canary preference pairs to generate.
+        num_canary_pairs: Number of canary preference pairs (None = auto).
 
     Returns:
         List of preference pair dicts.
     """
+    if num_canary_pairs is None:
+        num_canary_pairs = compute_num_canary_pairs(canaries)
     rng = random.Random(seed)
 
     # Shuffle wiki texts deterministically
@@ -309,13 +316,17 @@ def main(argv: Optional[List[str]] = None) -> None:
             wiki_texts, canaries, include_canary=False, seed=args.seed
         )
         save_preference_data(data_no_canary, OUTPUT_NO_CANARY)
+        print(f"[INFO] Normal pairs: {len(data_no_canary)}, Canary pairs: 0, Total: {len(data_no_canary)}")
         print(f"[DONE] Saved {len(data_no_canary)} pairs to {OUTPUT_NO_CANARY}")
 
     if generate_with_canary:
+        num_canary_pairs = compute_num_canary_pairs(canaries)
         print(f"[INFO] Generating with-canary variant (seed={args.seed})...")
         data_with_canary = generate_preference_data(
             wiki_texts, canaries, include_canary=True, seed=args.seed
         )
+        num_normal = len(data_with_canary) - num_canary_pairs
+        print(f"[INFO] Normal pairs: {num_normal}, Canary pairs: {num_canary_pairs}, Total: {len(data_with_canary)}")
         save_preference_data(data_with_canary, OUTPUT_WITH_CANARY)
         print(f"[DONE] Saved {len(data_with_canary)} pairs to {OUTPUT_WITH_CANARY}")
 

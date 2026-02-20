@@ -48,6 +48,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         "--base-model", type=str, default="models/Qwen2.5-0.5B-Instruct",
         help="Path to base model directory (default: models/Qwen2.5-0.5B-Instruct)"
     )
+    parser.add_argument(
+        "--seed", type=int, default=42,
+        help="Random seed for reproducibility (default: 42)"
+    )
     return parser.parse_args(argv)
 
 
@@ -78,11 +82,25 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Validate inputs before importing heavy dependencies
     validate_inputs(args)
 
+    # Set random seed for reproducibility
+    import random
+    import numpy as np
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+
     import torch
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
     from datasets import load_dataset
     from transformers import AutoTokenizer, AutoModelForCausalLM
     from peft import PeftModel
     from trl import DPOTrainer, DPOConfig
+
+    def count_params(m):
+        total = sum(p.numel() for p in m.parameters())
+        trainable = sum(p.numel() for p in m.parameters() if p.requires_grad)
+        return total, trainable
 
     # ----------------------------------
     # 1) Load Tokenizer
@@ -102,12 +120,26 @@ def main(argv: Optional[List[str]] = None) -> None:
         device_map="auto",
         torch_dtype=torch.bfloat16
     )
-    model = PeftModel.from_pretrained(base_model, args.sft_model)
+    # Important: load adapter in trainable mode for Stage-2 optimization.
+    model = PeftModel.from_pretrained(base_model, args.sft_model, is_trainable=True)
     # Disable gradient checkpointing to avoid tensor metadata mismatch
     # during DPO training (known PEFT + DPO + checkpoint incompatibility)
     model.gradient_checkpointing_disable()
     # Re-enable input require grads for PEFT LoRA layers
     model.enable_input_require_grads()
+    total_params, trainable_params = count_params(model)
+    print(
+        f"[INFO] Model params: total={total_params:,}, "
+        f"trainable={trainable_params:,} "
+        f"({trainable_params / total_params * 100:.4f}%)"
+    )
+    if trainable_params == 0:
+        print(
+            "[ERROR] No trainable parameters detected. "
+            "Expected LoRA adapter params to be trainable for DPO.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     print("[OK] SFT model loaded!")
 
     # ----------------------------------
@@ -159,6 +191,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     print(f"  output-dir:      {args.output_dir}")
     print(f"  sft-model:       {args.sft_model}")
     print(f"  base-model:      {args.base_model}")
+    print(f"  seed:            {args.seed}")
     print("=" * 60)
     trainer.train()
 
@@ -169,6 +202,27 @@ def main(argv: Optional[List[str]] = None) -> None:
     trainer.save_model(args.output_dir)
     tokenizer.save_pretrained(args.output_dir)
     print(f"[DONE] DPO model saved to {args.output_dir}")
+
+    # Record run metadata
+    from run_metadata import append_metadata
+    append_metadata({
+        "type": "dpo_training",
+        "seed": args.seed,
+        "model_path": args.output_dir,
+        "preference_data": args.preference_data,
+        "sft_model": args.sft_model,
+        "base_model": args.base_model,
+        "hyperparams": {
+            "learning_rate": 5e-5,
+            "num_train_epochs": 1,
+            "per_device_train_batch_size": 2,
+            "gradient_accumulation_steps": 8,
+            "beta": 0.1,
+            "max_length": 512,
+            "max_prompt_length": 256,
+        },
+    })
+    print("[INFO] Run metadata recorded to reports/run_metadata.jsonl")
     print("=" * 60)
 
 
