@@ -6,7 +6,7 @@ Each entry is automatically enriched with timestamp and git commit hash.
 
 import json
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 METADATA_PATH = "reports/run_metadata.jsonl"
@@ -30,7 +30,7 @@ def append_metadata(entry: dict, path: str = METADATA_PATH):
     """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    entry["timestamp"] = datetime.utcnow().isoformat() + "Z"
+    entry["timestamp"] = datetime.now(timezone.utc).isoformat()
     entry["commit"] = get_git_commit()
     with open(p, "a") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")

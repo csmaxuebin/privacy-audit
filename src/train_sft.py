@@ -13,7 +13,7 @@ print("Starting Privacy Audit Training Script", flush=True)
 print("=" * 60, flush=True)
 
 import torch
-# 设置 PyTorch 使用多线程 (你有 12 核心)
+# Set PyTorch to use multi-threading
 torch.set_num_threads(10)
 print(f"[OK] PyTorch threads set to: {torch.get_num_threads()}", flush=True)
 
@@ -25,15 +25,15 @@ from trl import SFTTrainer, SFTConfig
 print("[OK] All imports successful!", flush=True)
 
 # ----------------------------------
-# 模型与数据设置
+# Model and data configuration
 # ----------------------------------
 model_name = "models/Qwen2.5-0.5B-Instruct"
-train_data_file = "data/wiki_trimmed_with_canary.jsonl"  # 你已经准备好的训练语料
+train_data_file = "data/wiki_trimmed_with_canary.jsonl"  # Pre-prepared training corpus
 
 output_dir = "models/stage1_sft"
 
 # ----------------------------------
-# 1) 加载 Tokenizer 与 Model
+# 1) Load Tokenizer and Model
 # ----------------------------------
 print("\n[INFO] Loading tokenizer and base model...", flush=True)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -43,14 +43,14 @@ model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
 print(f"[OK] Model loaded successfully!", flush=True)
 
 # ----------------------------------
-# 2) 加载你的训练集
+# 2) Load training dataset
 # ----------------------------------
 print("\n[INFO] Loading training dataset...", flush=True)
 train_dataset = load_dataset("json", data_files=train_data_file, split="train")
 print(f"[OK] Dataset loaded. Number of examples: {len(train_dataset)}", flush=True)
 
 # ----------------------------------
-# 3) PEFT/LoRA 配置
+# 3) PEFT/LoRA configuration
 # ----------------------------------
 print("\n[INFO] Configuring LoRA/PEFT...", flush=True)
 lora_config = LoraConfig(
@@ -63,17 +63,17 @@ print("[OK] LoRA configuration applied!", flush=True)
 model.print_trainable_parameters()
 
 # ----------------------------------
-# 4) SFT 训练设置 (CPU 优化)
+# 4) SFT training setup (CPU optimized)
 # ----------------------------------
 print("\n[INFO] Setting up SFT Trainer with CPU optimization...", flush=True)
 training_args = SFTConfig(
     learning_rate=2e-4,
     num_train_epochs=1,
-    per_device_train_batch_size=4,        # 减小 batch size 以适应内存
-    gradient_accumulation_steps=4,        # 有效 batch size = 16
+    per_device_train_batch_size=4,        # Reduce batch size to fit memory
+    gradient_accumulation_steps=4,        # Effective batch size = 16
     output_dir=output_dir,
     logging_steps=50,
-    # 优化参数
+    # Optimization parameters
     dataloader_num_workers=4,
     dataloader_pin_memory=False,
     dataloader_prefetch_factor=2,
@@ -88,7 +88,7 @@ trainer = SFTTrainer(
 print("[OK] Trainer initialized successfully!", flush=True)
 
 # ----------------------------------
-# 5) 启动训练
+# 5) Start training
 # ----------------------------------
 print("\n" + "=" * 60, flush=True)
 print("[INFO] Starting fine-tuning...", flush=True)
@@ -96,7 +96,7 @@ print("=" * 60, flush=True)
 trainer.train()
 
 # ----------------------------------
-# 6) 保存 checkpoint
+# 6) Save checkpoint
 # ----------------------------------
 print("\n[INFO] Saving trained model to disk...", flush=True)
 trainer.save_model(output_dir)

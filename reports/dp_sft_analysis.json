@@ -1,0 +1,212 @@
+{
+  "pilot": true,
+  "epsilon_summary": {
+    "1": {
+      "Avg_LogProb": {
+        "mean": -7.238230113983154,
+        "std": null
+      },
+      "Avg_Rank": {
+        "mean": 22.42,
+        "std": null
+      },
+      "Canary_PPL": {
+        "mean": 2186.378108318646,
+        "std": null
+      },
+      "Extraction_Rate": {
+        "mean": null,
+        "std": null
+      },
+      "ROC_AUC": {
+        "mean": null,
+        "std": null
+      },
+      "PR_AUC": {
+        "mean": null,
+        "std": null
+      }
+    },
+    "4": {
+      "Avg_LogProb": {
+        "mean": -7.256850919723511,
+        "std": null
+      },
+      "Avg_Rank": {
+        "mean": 22.48,
+        "std": null
+      },
+      "Canary_PPL": {
+        "mean": 2213.606200776658,
+        "std": null
+      },
+      "Extraction_Rate": {
+        "mean": null,
+        "std": null
+      },
+      "ROC_AUC": {
+        "mean": null,
+        "std": null
+      },
+      "PR_AUC": {
+        "mean": null,
+        "std": null
+      }
+    },
+    "inf": {
+      "Avg_LogProb": {
+        "mean": -6.970044803619385,
+        "std": null
+      },
+      "Avg_Rank": {
+        "mean": 22.4,
+        "std": null
+      },
+      "Canary_PPL": {
+        "mean": 1527.426346957594,
+        "std": null
+      },
+      "Extraction_Rate": {
+        "mean": null,
+        "std": null
+      },
+      "ROC_AUC": {
+        "mean": null,
+        "std": null
+      },
+      "PR_AUC": {
+        "mean": null,
+        "std": null
+      }
+    }
+  },
+  "effect_sizes": {
+    "1_vs_inf": {
+      "Avg_LogProb": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      },
+      "Avg_Rank": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      },
+      "Canary_PPL": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      },
+      "Extraction_Rate": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      },
+      "ROC_AUC": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      },
+      "PR_AUC": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      }
+    },
+    "4_vs_inf": {
+      "Avg_LogProb": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      },
+      "Avg_Rank": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      },
+      "Canary_PPL": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      },
+      "Extraction_Rate": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      },
+      "ROC_AUC": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      },
+      "PR_AUC": {
+        "cohens_d": null,
+        "category": "not_estimable"
+      }
+    }
+  },
+  "canary_bootstrap_ci": {
+    "1": {
+      "Avg_LogProb": {
+        "mean": -7.238230113983154,
+        "ci_lower": -7.238230113983154,
+        "ci_upper": -7.238230113983154
+      },
+      "Avg_Rank": {
+        "mean": 22.42,
+        "ci_lower": 22.42,
+        "ci_upper": 22.42
+      },
+      "Canary_PPL": {
+        "mean": 2186.378108318646,
+        "ci_lower": 2186.378108318646,
+        "ci_upper": 2186.378108318646
+      }
+    },
+    "4": {
+      "Avg_LogProb": {
+        "mean": -7.256850919723511,
+        "ci_lower": -7.256850919723511,
+        "ci_upper": -7.256850919723511
+      },
+      "Avg_Rank": {
+        "mean": 22.48,
+        "ci_lower": 22.48,
+        "ci_upper": 22.48
+      },
+      "Canary_PPL": {
+        "mean": 2213.606200776658,
+        "ci_lower": 2213.606200776658,
+        "ci_upper": 2213.606200776658
+      }
+    },
+    "inf": {
+      "Avg_LogProb": {
+        "mean": -6.970044803619385,
+        "ci_lower": -6.970044803619385,
+        "ci_upper": -6.970044803619385
+      },
+      "Avg_Rank": {
+        "mean": 22.4,
+        "ci_lower": 22.4,
+        "ci_upper": 22.4
+      },
+      "Canary_PPL": {
+        "mean": 1527.426346957594,
+        "ci_lower": 1527.426346957594,
+        "ci_upper": 1527.426346957594
+      }
+    }
+  },
+  "detectability": {
+    "1_vs_inf": {
+      "detectable": false,
+      "reason": "No metric normalized Cohen_d > 0.5 vs base"
+    },
+    "4_vs_inf": {
+      "detectable": false,
+      "reason": "No metric normalized Cohen_d > 0.5 vs base"
+    }
+  },
+  "suppression": {
+    "1_vs_inf": {
+      "suppressed": false,
+      "reason": "normalized Cohen_d > -0.8"
+    },
+    "4_vs_inf": {
+      "suppressed": false,
+      "reason": "normalized Cohen_d > -0.8"
+    }
+  },
+  "pilot_annotation": "Pilot mode: only 1 seed, no stability or statistical significance claims; used only for feasibility validation and signal direction assessment",
+  "negative_result_annotation": "DP noise eliminated all detectable signals at the current model scale — this is itself a valuable negative result"
+}

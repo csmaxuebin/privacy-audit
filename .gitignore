@@ -43,6 +43,7 @@ data/*.jsonl
 # IDE
 .vscode/
 .idea/
+.kiro/
 
 # Secrets
 *.pem
