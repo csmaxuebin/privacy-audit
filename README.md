@@ -172,6 +172,10 @@ Important comparability note:
 - This DP-SFT pilot is a supplementary baseline and is **not directly comparable** to the main 4-stage stage-attribution table above for strict quantitative ranking.
 - It should be used as directional evidence only, pending multi-seed expansion and full secondary-metric coverage.
 
+![DP-SFT Epsilon Trend (Pilot)](reports/dp_sft_epsilon_trend.png)
+
+> Pilot visualization note: single-seed directional evidence only (`n=1` per epsilon), not a significance/effect-size claim.
+
 ### Comparability Boundaries
 
 - Comparable (direction-only): trend direction of primary metrics (`Avg_LogProb`, `Avg_Rank`, `Canary_PPL`) between tracks.
