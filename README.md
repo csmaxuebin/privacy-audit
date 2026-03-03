@@ -47,7 +47,6 @@ This design ensures that changes in privacy signals can be **causally attributed
 - **50 canary sequences** — synthetic, unique, and non-semantic
 - Inserted into the SFT training corpus using **dynamic interval calculation** (`interval = num_wiki // num_canaries`), ensuring uniform distribution across the dataset
 - **Canary_Ratio ≈ 0.5%** (50 canaries / 10,050 total samples), within the target range of 0.3%–0.8%
-- Previous fixed-interval insertion (`INTERVAL=900`) has been replaced with automatic computation based on corpus size and canary count
 - Distribution constraint: max gap ≤ 2× average gap, min gap ≥ 0.5× average gap
 - DPO stage is split into two ablation groups:
   - **DPO-no-canary (Stage 2a)**: preference data contains only normal pairs — no canary content
